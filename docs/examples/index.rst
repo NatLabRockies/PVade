@@ -20,8 +20,11 @@ Use these pages as practical starting points when configuring a new case.
    Heliostat_3D
    Panels_2D
    Panels_3D
-   Gmsh_Code
    Cylinderflow_Python
    ..   Cylinder_2D
    ..   Cylinder_3D
+
+.. Gmsh Code Utilities page is commented out for now; re-enable by uncommenting below.
+..
+   Gmsh_Code
 

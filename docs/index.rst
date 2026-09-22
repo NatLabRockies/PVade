@@ -19,8 +19,9 @@ Organization
 Documentation is organized into four main sections:
 
 **User Guide**: User-facing guides covering basic topics and use cases for the PVade software
-**Theory**: The governing equations and modeling background used by PVade
+
 **Implementation**: Programming details, API reference material, and supporting background
+
 **Testing**: Notes on the automated test suite and how to run it
 
 New users may find it helpful to review the User Guide materials first.
@@ -50,18 +51,21 @@ Contents
    hpc_jobs
    benchmark
    how_to_cite_pvade
+   posters
    examples/index
 
 
-.. toctree::
-   :maxdepth: 2
-   :caption: THEORY
+.. Theory section is commented out for now; re-enable by uncommenting below.
+..
+   .. toctree::
+      :maxdepth: 2
+      :caption: THEORY
 
-   governing_equations
-   mesh_generation
-   CFD
-   CSD
-   mesh_movement
+      governing_equations
+      mesh_generation
+      CFD
+      CSD
+      mesh_movement
 
 .. toctree::
    :maxdepth: 2
