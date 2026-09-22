@@ -4,7 +4,7 @@ Thank you for your interest in contributing to PVade.
 Contributions of all kinds are welcome, including:
 
 - Bug reports and reproducible issue cases.
-- New features and solver/mesh-generation improvements.
+- New features and solver/geometry improvements.
 - Test improvements.
 - Documentation updates.
 
@@ -19,35 +19,35 @@ Contributions of all kinds are welcome, including:
 Use the project conda environment from the repository root:
 
 ```bash
-conda env create -n pvade -f environment.yaml
-conda activate pvade
+mamba env create -n PVade -f environment.yaml
+mamba activate PVade
 ```
 
-This environment includes runtime dependencies (FEniCSx/DOLFINx, Gmsh, MPI, etc.) plus
-testing and documentation tooling.
+This environment includes the FEniCSx/DOLFINx runtime dependencies plus testing and documentation tooling.
+See `docs/installing_pvade.rst` for platform-specific notes (including Windows/WSL2 setup).
 
 ## Repository Layout
 
-- `pvade_main.py`: entry point for running a simulation.
-- `pvade/fluid/`, `pvade/structure/`, `pvade/fsi/`: fluid, structural, and fluid-structure
-  interaction solver code.
-- `pvade/geometry/`: geometry and mesh generation.
-- `pvade/IO/`: input parameter parsing, logging, and data streaming.
-- `pvade/tests/`: pytest suite (unit and regression tests).
-- `test_all_inputs.py`: end-to-end test that runs `pvade_main.py` against every example
-  input file.
-- `examples/`: example YAML input files.
+- `pvade_main.py`: entry point for running a simulation, e.g. `python pvade_main.py --input_file examples/panels2d.yaml`.
+- `pvade/fluid/`: fluid (CFD) solver components.
+- `pvade/structure/`: structural (CSD) solver components.
+- `pvade/fsi/`: fluid-structure interaction coupling.
+- `pvade/geometry/`: mesh generation and geometry management.
+- `pvade/IO/`: input parameter parsing, schema validation, and data/logging output.
+- `pvade/tests/`: pytest suite.
+- `examples/`: example input YAML files.
+- `tutorials/`: standalone tutorial scripts (e.g. `tutorials/poissoneq.py`).
 - `docs/`: Sphinx documentation source.
 
 ## Local Validation
 
-Run the unit/regression test suite before opening a pull request:
+Run the test suite before opening a pull request:
 
 ```bash
 PYTHONPATH=. pytest -sv pvade/tests/
 ```
 
-Run the full end-to-end suite against all example inputs:
+To also validate that every example input file runs end-to-end:
 
 ```bash
 pytest -sv test_all_inputs.py
@@ -56,13 +56,13 @@ pytest -sv test_all_inputs.py
 To target a specific input file used by the parametrized tests:
 
 ```bash
-pytest -sv pvade/tests/ --input-file examples/panels3d.yaml
+pytest -sv pvade/tests --input-file examples/panels3d.yaml
 ```
 
 Format code with Black:
 
 ```bash
-black pvade
+black .
 ```
 
 Build docs locally when changing documentation:
@@ -76,10 +76,9 @@ make html
 
 - Follow PEP 8 and keep code changes focused.
 - Prefer small, reviewable pull requests over large mixed changes.
-- Add or update tests when fixing bugs or adding behavior.
+- Add or update tests in `pvade/tests/` when fixing bugs or adding behavior.
+- If you add a new input option, update `pvade/IO/input_schema.yaml` and the corresponding section in `docs/input_schema.rst`.
 - Keep user-facing defaults and input-file behavior backward compatible where practical.
-- Use the `unit` and `regression` pytest markers (defined in `pytest.ini`) appropriately
-  when adding new tests.
 
 ## Pull Request Checklist
 
@@ -87,15 +86,13 @@ Before submitting a pull request, confirm:
 
 - The change is linked to an issue (or clearly justified).
 - `PYTHONPATH=. pytest -sv pvade/tests/` passes locally.
-- `pytest -sv test_all_inputs.py` passes locally, if applicable to your change.
-- `black pvade` has been applied.
+- `black .` has been applied.
 - Documentation is updated when behavior, inputs, or outputs changed.
 - The PR description explains what changed, why it changed, and how it was validated.
 
 ## CI Notes
 
-Current CI (`.github/workflows/test_pvade.yaml`) runs on pull requests to `main`, `dev`,
-`sync`, and `dev_wrap`, and on pushes to `main`:
+Current CI (`.github/workflows/test_pvade.yaml`) runs on every push/PR to `main`, `dev`, `sync`, and `dev_wrap`:
 
 - `pytest -sv pvade/tests/` and `pytest -sv test_all_inputs.py` on Ubuntu and macOS.
 - Black formatting checks.
