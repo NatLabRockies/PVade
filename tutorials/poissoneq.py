@@ -1,3 +1,13 @@
+import warnings
+
+# Suppress third-party deprecation warning from ufl importing pkg_resources.
+warnings.filterwarnings(
+    "ignore",
+    message=r"pkg_resources is deprecated as an API.*",
+    category=UserWarning,
+    module=r"ufl.*",
+)
+
 import numpy as np
 import sys
 import ufl
