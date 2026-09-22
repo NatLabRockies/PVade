@@ -40,6 +40,7 @@ Contents
 
    doxygen/index
    background
+   posters
 
 .. toctree::
    :maxdepth: 1
@@ -51,7 +52,6 @@ Contents
    hpc_jobs
    benchmark
    how_to_cite_pvade
-   posters
    examples/index
 
 

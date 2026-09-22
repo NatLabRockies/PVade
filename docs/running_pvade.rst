@@ -80,6 +80,28 @@ More On Input Parameters
 For detailed parameter documentation, see :doc:`pvade_input_file` and
 :doc:`input_schema`.
 
+Controlling Terminal Verbosity
+-------------------------------
+
+PVade's terminal output is controlled by the ``PVADE_VERBOSITY`` environment
+variable. It accepts three levels:
+
+- ``0``: quiet mode; INFO messages are suppressed in the terminal (errors are
+  always shown)
+- ``1`` (default): INFO messages are printed from rank 0 only
+- ``2``: verbose mode; INFO messages are printed from every MPI rank
+
+Set it before launching a run, for example:
+
+.. code-block:: bash
+
+   PVADE_VERBOSITY=2 conda run -n PVade python pvade_main.py --input examples/panels3d.yaml
+
+.. note::
+   ``PVADE_VERBOSITY`` only affects what is echoed to the terminal. The full
+   set of INFO-level messages is always written to ``logfile.log`` in the
+   run's output directory, regardless of the verbosity level.
+
 .. toctree::
    :maxdepth: 1
 

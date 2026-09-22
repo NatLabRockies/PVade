@@ -11,6 +11,26 @@ PV Panels 2D Workflow Overview
 - Coupled fluid and structural solves in a single run
 - Output of flow and structural fields for post-processing
 
+PV Panels 2D Geometry Variables
+--------------------------------
+
+The ``pv_array`` and ``domain`` blocks control the panel geometry and the
+extent of the fluid domain. In the 2D case, the cross-section lies in the
+x-y plane, with y as the vertical direction. The schematic below shows how
+the main variables relate to one another:
+
+.. image:: pictures/panels2d/panels2d_variables.png
+   :alt: Schematic of panels2d geometry variables in the x-y plane
+   :width: 100%
+   :align: center
+
+- ``elevation``: vertical distance between the panel center and the ground
+- ``tracker_angle``: panel rotation about the torque tube (in 2D, a positive angle brings the upstream edge nearer the ground)
+- ``panel_chord``: panel length from leading to trailing edge
+- ``panel_thickness``: panel thickness
+- ``stream_rows`` / ``stream_spacing``: number of, and separation between, rows in the streamwise (x) direction
+- ``bc_y_min`` / ``bc_y_max``: fluid boundary conditions at the ground and top of the domain
+
 PV Panels 2D Input File
 --------------------
 

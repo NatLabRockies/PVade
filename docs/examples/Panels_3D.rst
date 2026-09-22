@@ -12,6 +12,28 @@ PV Panels 3D Workflow Overview
 - Coupled CFD and structural analysis in one workflow
 - Transient outputs for aerodynamic loading and structural response
 
+PV Panels 3D Geometry Variables
+--------------------------------
+
+The ``pv_array`` and ``domain`` blocks control the array layout and the
+extent of the fluid domain. The schematic below shows how the main
+variables relate to one another, in side view (x-z plane) and top view
+(x-y plane):
+
+.. image:: pictures/panels3d/panels3d_variables.png
+   :alt: Schematic of panels3d geometry variables, side view and top view
+   :width: 100%
+   :align: center
+
+- ``elevation``: vertical distance between the panel center and the ground
+- ``tracker_angle``: panel rotation about the torque tube (right-hand rule about +y)
+- ``panel_chord``: panel length from leading to trailing edge
+- ``panel_span``: panel length in the spanwise direction
+- ``panel_thickness``: panel thickness
+- ``stream_rows`` / ``stream_spacing``: number of, and separation between, rows in the streamwise (x) direction
+- ``span_rows`` / ``span_spacing``: number of, and separation between, rows in the spanwise (y) direction
+- ``span_fixation_pts``: locations of structural fixation points along the panel span
+
 PV Panels 3D Input File
 --------------------
 
