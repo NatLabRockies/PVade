@@ -25,8 +25,8 @@ def test_pvade_run(input_file, mesh_only, nprocs):
 
     # Add special argument for duramat_case_study.yaml
     if input_file.name in [
-        "duramat_case_study.yaml",
-        "turbinflow_duramat_case_study.yaml",
+        "panels3d.yaml"
+        # "turbinflow_duramat_case_study.yaml",
     ]:
         cmd += ["--domain.l_char", "4"]
 

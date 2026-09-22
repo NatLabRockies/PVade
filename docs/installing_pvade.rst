@@ -42,7 +42,7 @@ We can test the successful installation of PVade and its MPI implementation by r
   
   mpirun -np $num_cores python -u $PVade/tutorials/poissoneq.py 64  cg none 1
 
-The example solves a Poisson's equation in 3 dimensions using 64 elements and 1st order Lagrange shape functions with cg as the ksp solver and no preconditioners. 
+The example solves a Poisson's equation in 3 dimensions using 64 elements and 1st order Lagrange shape functions with cg as the ksp solver and no pre-conditioners. 
 For more details about the Poisson's problem, we refer the user to the following link: https://jsdokken.com/dolfinx-tutorial/chapter1/fundamentals.html 
 
 
@@ -216,20 +216,20 @@ We change the directory to ``$PVade`` and load mamba.
    The same can be achieved by using Conda.
    Mamba was shown to be faster.
 
-We then create an environment ``my_env_name`` and activate it.
+We then create an environment ``PVade_public`` and activate it.
 
 .. code::
 
    ~$ mamba env create -n PVade_public -f environment.yaml
-   ~$ mamba activate my_env_name
+   ~$ mamba activate PVade_public
 
-To test the installation we can run an example using the command 
+To test the installation we can run an example using the command:
 
 .. code::
 
    mpirun -np $num_cores python -u $PVade/tutorials/poissoneq.py 64  cg none 1
 
-The example solves a Poisson's equation in 3 dimensions using 64 elements and 1st order Lagrange shape functions with cg as the ksp solver and no preconditioners. 
+The example solves a Poisson's equation in 3 dimensions using 64 elements and 1st order Lagrange shape functions with cg as the ksp solver and no pre-conditioners. 
 
 .. note::
 
