@@ -50,7 +50,7 @@ For more details about the Poisson's problem, we refer the user to the following
 On a Windows machine
 ------------------------------------------------------------------------------
 
-See the [Instructions for DOLFINx](https://github.com/FEniCS/dolfinx/blob/main/README.md)
+See the `Instructions for DOLFINx <https://github.com/FEniCS/dolfinx/blob/main/README.md>`_
 for background. Four installation options are described below, in order of
 recommendation.
 
@@ -79,9 +79,9 @@ This is the easiest method to set up, access, and understand.
 4. After installation, access your environment by opening Ubuntu. Use ``apt``
    or ``pip`` to install any additional packages you need. To access this
    environment in VSCode, use the
-   [WSL extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-wsl),
+   `WSL extension <https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-wsl>`_,
    which works similarly to remotely accessing HPC systems through SSH with the
-   [SSH extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh).
+   `SSH extension <https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh>`_.
 
 Option 2: Using Docker
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -89,7 +89,7 @@ Option 2: Using Docker
 If you are already comfortable with Docker, we recommend using Docker for
 DOLFINx; otherwise, we recommend WSL2 instead.
 
-1. [Install](https://docs.docker.com/desktop/install/windows-install/) Docker.
+1. `Install <https://docs.docker.com/desktop/install/windows-install/>`_ Docker.
    Docker Desktop requires a license for large organizations such as NLR;
    check license availability before proceeding. A Docker Desktop license is
    not necessary for installing a DOLFINx environment in Docker.
@@ -147,7 +147,7 @@ Option 4: Using Spack
 ~~~~~~~~~~~~~~~~~~~~~~
 
 Windows only technically supports Spack, per
-[these instructions](https://spack.readthedocs.io/en/latest/getting_started.html#spack-on-windows).
+`these instructions <https://spack.readthedocs.io/en/latest/getting_started.html#spack-on-windows>`_.
 Follow this procedure:
 
 1. Install prerequisites: VSCode with C++ compiler options, Python, and Git.
