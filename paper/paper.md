@@ -165,7 +165,7 @@ disk. All physics models are discretized using finite element methods within
 `FEniCSx`, which internally leverages scalable linear algebra and parallel
 communication backends for high-performance execution.
 
-![Flowchart view of `PVade` structure.](figures/PVade_flowchart2.png){ width=100% }
+![Flowchart view of `PVade` structure.](figures/PVade_flowchart2.png)
 
 
 `PVade` follows a modular design philosophy that promotes extensibility and
