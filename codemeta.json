@@ -1,0 +1,60 @@
+{
+  "@context": "https://raw.githubusercontent.com/codemeta/codemeta/0.1-alpha/codemeta.jsonld",
+  "@type": "SoftwareSourceCode",
+  "author": [
+    {
+      "@type": "Person",
+      "givenName": "Ethan",
+      "familyName": "Young",
+      "affiliation": "National Renewable Energy Laboratory"
+    },
+    {
+      "@type": "Person",
+      "givenName": "Walid",
+      "familyName": "Arsalane",
+      "affiliation": "National Renewable Energy Laboratory"
+    },
+    {
+      "@type": "Person",
+      "givenName": "Brooke",
+      "familyName": "Stanislawski",
+      "affiliation": "National Renewable Energy Laboratory"
+    },
+    {
+      "@type": "Person",
+      "givenName": "Xin",
+      "familyName": "He",
+      "affiliation": "National Renewable Energy Laboratory"
+    },
+    {
+      "@type": "Person",
+      "givenName": "Chris",
+      "familyName": "Ivanov",
+      "affiliation": "National Renewable Energy Laboratory"
+    },
+    {
+      "@type": "Person",
+      "givenName": "Scott",
+      "familyName": "Dana",
+      "affiliation": "National Renewable Energy Laboratory"
+    },
+    {
+      "@type": "Person",
+      "givenName": "Michael",
+      "familyName": "Deceglie",
+      "affiliation": "National Renewable Energy Laboratory"
+    }
+  ],
+  "identifier": "https://doi.org/10.11578/dc.20231208.1",
+  "codeRepository": "https://github.com/NREL/PVade",
+  "datePublished": "2023-09-29",
+  "dateModified": "2023-09-29",
+  "dateCreated": "2023-09-29",
+  "description": "PVade (PV Aerodynamic Design Engineering) is an open-source fluid-structure interaction (FSI) solver which can accurately simulate wind loads and aerodynamic stability in solar-tracking PV arrays. PVade's pressure profiles and inertial load time series can be used as inputs into mechanical module models to study degradation mechanisms including cracking of cells, weathering of cracked cells, and glass breakage. This software enables PV plant owners to predict optimal high-wind stow strategies under a variety of weather and site conditions.",
+  "keywords": "photovoltaics, fluid-structure interaction, wind loads, CFD, FEniCSx, solar tracking",
+  "license": "BSD-3-Clause",
+  "programmingLanguage": "Python",
+  "title": "PVade (PV Aerodynamic Design Engineering) [SWR-23-49]",
+  "version": "0.3.0"
+}
+

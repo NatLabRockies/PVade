@@ -19,9 +19,13 @@ def pytest_generate_tests(metafunc):
     if input_file_arg:
         metafunc.parametrize("input_file", [Path(input_file_arg)])
     else:
-        # 🔧 Always resolve input/ relative to location of conftest.py (PVade/)
+        # Resolve relative to location of conftest.py (PVade/); prefer a
+        # local, untracked "input" dir if present, else fall back to the
+        # tracked "examples" dir shipped with the repo.
         this_dir = Path(__file__).resolve().parent  # PVade/
         input_dir = this_dir / "input"
+        if not input_dir.is_dir() or not sorted(input_dir.glob("*.yaml")):
+            input_dir = this_dir / "examples"
 
         all_files = sorted(input_dir.glob("*.yaml"))
         if not all_files:
