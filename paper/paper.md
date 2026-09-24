@@ -1,26 +1,32 @@
 ---
-title: "`PVade`: A Python package for simulating wind loading and aerodynamic
-stability in solar-tracking PV arrays"
+title: "`PVade`: A Python package for simulating wind loading and aerodynamic stability in solar-tracking PV arrays"
 tags:
   - Python
-  - astronomy
-  - dynamics
-  - galactic dynamics
-  - milky way
+  - PV
+  - FSI 
+  - Wind Loading of PV 
 authors:
   - name: Walid Arsalane
     # orcid: 0000-0000-0000-0000
     affiliation: 1 # (Multiple affiliations must be quoted)
     corresponding: true # (This is how to denote the corresponding author)
   - name: Ethan Young
+    # orcid: 0000-0000-0000-0000
     affiliation: 1
   - name: Brooke Stanislawski
+    # orcid: 0000-0000-0000-0000
     affiliation: 1
   - name: Xin He
+    # orcid: 0000-0000-0000-0000
+    affiliation: 1
+  - name: Matthew Emes
+    # orcid: 0000-0000-0000-0000
     affiliation: 1
   - name: Martin Springer
+    # orcid: 0000-0000-0000-0000
     affiliation: 1
   - name: Andrew Glaws
+    # orcid: 0000-0000-0000-0000
     affiliation: 1
 affiliations:
  - name: National Laboratory of the Rockies, Golden, CO, United States
