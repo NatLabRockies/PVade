@@ -137,7 +137,6 @@ class Structure:
             / ((1.0 + self.poissons_ratio) * (1.0 - 2.0 * self.poissons_ratio))
         )
 
-
         # we are assuming the connectors has same mechanical properties as the tubes
         self.E_connector = params.structure.elasticity_modulus_tube  # 1.0e9
         self.poissons_ratio_connector = params.structure.poissons_ratio_tube  # 0.3
@@ -153,13 +152,11 @@ class Structure:
             )
         )
 
-
         _vprint(
             self.rank,
             f"mu = {self.lame_mu} lambda = {self.lame_lambda} E = {self.E} nu = {self.poissons_ratio} density = {self.rho.value}",
             level=1,
         )
-
 
         def _north_east_corner(x):
             eps = 1.0e-6
