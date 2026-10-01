@@ -194,9 +194,7 @@ class DomainCreation(TemplateDomainCreation):
 
                 elif np.isclose(com[1], y_min_panel):
                     self._add_to_domain_markers(
-
                         f"panel_bottom_{panel_id:.0f}_0", [surf_id], "facet"
-
                     )
 
                 elif np.isclose(com[1], y_max_panel):
