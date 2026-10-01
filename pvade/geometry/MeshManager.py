@@ -181,6 +181,8 @@ class FSIDomain:
     def build(self, params):
         """This function call builds the geometry, marks the boundaries and creates a mesh using Gmsh."""
 
+        self.modeling_torque_tube = False
+
         domain_creation_module = (
             f"pvade.geometry.{params.general.geometry_module}.DomainCreation"
         )
@@ -203,6 +205,8 @@ class FSIDomain:
                 and params.general.structural_analysis == True
             ):
                 self.geometry.build_FSI(params)
+                self.modeling_torque_tube = self.geometry.modeling_torque_tube
+
             elif (
                 (
                     params.general.geometry_module == "panels3d"
@@ -212,8 +216,12 @@ class FSIDomain:
                 and params.general.structural_analysis == True
             ):
                 self.geometry.build_structure(params)
+                self.modeling_torque_tube = self.geometry.modeling_torque_tube
             else:
                 self.geometry.build_FSI(params)
+
+                self.modeling_torque_tube = False
+
             # Build the domain markers for each surface and cell
             if hasattr(self.geometry, "domain_markers"):
                 # If the "build" process created domain markers, use those directly...
@@ -238,6 +246,8 @@ class FSIDomain:
             self.ndim = (
                 self.geometry.ndim
             )  # gmsh_model.get_dimension() # ?? should this be domain.ndim?
+
+        self.modeling_torque_tube = self.comm.bcast(self.modeling_torque_tube, root=0)
 
         # When finished, rank 0 needs to tell other ranks about how the domain_markers dictionary was created
         # and what values it holds. This is important now since the number of indices "idx" generated in the
@@ -265,6 +275,11 @@ class FSIDomain:
         self.msh.name = "mesh_total"
         self.cell_tags.name = "cell_tags"
         self.facet_tags.name = "facet_tags"
+
+        with dolfinx.io.XDMFFile(self.comm, f"parent_mesh_only.xdmf", "w") as fp:
+            fp.write_mesh(self.msh)
+            fp.write_meshtags(self.cell_tags)
+            fp.write_meshtags(self.facet_tags)
 
         # if (
         #     params.general.geometry_module == "panels3d"
@@ -338,10 +353,30 @@ class FSIDomain:
             _vprint(self.rank, f"Creating {sub_domain_name} submesh", level=1)
 
             # Get the idx associated with either "fluid" or "structure"
-            marker_id = self.domain_markers[sub_domain_name]["idx"]
 
-            # Find all cells where cell tag = marker_id
-            submesh_cells = self.cell_tags.find(marker_id)
+            # if structure includes modules and connectors
+            if (
+                sub_domain_name == "structure"
+                and "structure" not in self.domain_markers
+            ):
+                marker_id = self.domain_markers["modules"]["idx"]
+                # Find all cells where cell tag = marker_id
+                if (
+                    self.modeling_torque_tube
+                    and params.general.geometry_module == "panels3d"
+                ):
+                    submesh_cells_modules = self.cell_tags.find(marker_id)
+                    marker_id = self.domain_markers["connectors"]["idx"]
+                    submesh_cells = np.hstack(
+                        (self.cell_tags.find(marker_id), submesh_cells_modules)
+                    )
+                else:
+                    submesh_cells = self.cell_tags.find(marker_id)
+
+            else:
+                marker_id = self.domain_markers[sub_domain_name]["idx"]
+                # Find all cells where cell tag = marker_id
+                submesh_cells = self.cell_tags.find(marker_id)
 
             # Use those found cells to construct a new mesh
             submesh, entity_map, vertex_map, geom_map = dolfinx.mesh.create_submesh(
@@ -382,7 +417,7 @@ class FSIDomain:
         num_facets = f_map.size_local + f_map.num_ghosts
         all_values = np.zeros(num_facets, dtype=np.int32)
 
-        # Assign non-zero facet tags using the facet tag indices
+        # Assign non-zero facet tags using the facet tag indices, save the facet marker to all_values
         all_values[self.facet_tags.indices] = self.facet_tags.values
 
         cell_to_facet = self.msh.topology.connectivity(self.ndim, facet_dim)
@@ -418,14 +453,29 @@ class FSIDomain:
                 for child, parent in zip(child_facets, parent_facets):
                     sub_values[child] = all_values[parent]
 
+            # sub_cell_map = sub_domain.msh.topology.index_map(self.ndim)
+            f_map_cell = self.msh.topology.index_map(self.ndim)
+
+            # Get the total number of cells in the parent mesh
+            num_cells = f_map_cell.size_local + f_map_cell.num_ghosts
+            all_cell_values = np.zeros(num_cells, dtype=np.int32)
+            all_cell_values[self.cell_tags.indices] = self.cell_tags.values
+
             sub_cell_map = sub_domain.msh.topology.index_map(self.ndim)
             sub_num_cells = sub_cell_map.size_local + sub_cell_map.num_ghosts
+
+            sub_cell_values = np.empty(sub_num_cells, dtype=np.int32)
+
+            for k, entity in enumerate(sub_domain.entity_map):
+                sub_cell_values[k] = all_cell_values[entity]
+
+            # sub_num_cells = sub_cell_map.size_local + sub_cell_map.num_ghosts
 
             sub_domain.cell_tags = dolfinx.mesh.meshtags(
                 sub_domain.msh,
                 sub_domain.msh.topology.dim,
                 np.arange(sub_num_cells, dtype=np.int32),
-                np.ones(sub_num_cells, dtype=np.int32),
+                sub_cell_values,
             )
             sub_domain.cell_tags.name = "cell_tags"
 
@@ -661,6 +711,17 @@ class FSIDomain:
         and use it to solve the CFD/CSD problem
         """
 
+        if (
+            params.pv_array.torque_tube_separation > 0.0
+            and params.pv_array.torque_tube_outer_radius > 0.0
+        ):
+            self.modeling_torque_tube = True
+        else:
+            self.modeling_torque_tube = False
+            assert (
+                params.pv_array.modules_per_span == 1
+            ), "When not modeling torque tube, modules_per_span must be 1."
+
         sub_domain_list = ["fluid", "structure"]
 
         for sub_domain_name in sub_domain_list:
@@ -821,7 +882,7 @@ class FSIDomain:
             level=2,
         )
 
-    def test_submesh_transfer(self, params):
+    def test_submesh_transfer(self, params, domain, elasticity):
         P2 = ufl.VectorElement("Lagrange", self.msh.ufl_cell(), 2)
         # P2 = ufl.FiniteElement("Lagrange", self.fluid.msh.ufl_cell(), 1)
 
