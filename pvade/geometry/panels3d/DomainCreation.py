@@ -2,6 +2,13 @@ import gmsh
 import numpy as np
 
 from pvade.geometry.template.TemplateDomainCreation import TemplateDomainCreation
+from pvade.IO.verbosity import emit_verbosity_print
+
+
+def _vprint(rank, message, level=1):
+    """Rank-0 verbosity-aware print helper for geometry debug messages."""
+    if rank == 0:
+        emit_verbosity_print(message, level=level)
 
 
 class DomainCreation(TemplateDomainCreation):
