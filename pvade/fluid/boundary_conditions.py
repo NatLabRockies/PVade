@@ -1,9 +1,27 @@
+"""Boundary condition utilities for the incompressible Navier–Stokes solver.
+
+This module provides functions and classes for building Dirichlet boundary
+conditions on velocity, pressure, and temperature fields.  It also contains
+:class:`InflowVelocity`, a callable class that evaluates user-selected inflow
+profiles (uniform, parabolic, log-law, or from a pre-computed HDF5 file) at
+any spatial position and simulation time.
+"""
+
 import dolfinx
 from petsc4py import PETSc
 
 import numpy as np
+import h5py
+import scipy.interpolate as interp
 
 import warnings
+from pvade.IO.verbosity import emit_verbosity_print
+
+
+def _vprint(rank, message, level=1):
+    """Rank-0 verbosity-aware print helper for boundary-condition messages."""
+    if rank == 0:
+        emit_verbosity_print(message, level=level)
 
 
 def get_facet_dofs_by_gmsh_tag(domain, functionspace, location):
@@ -42,7 +60,7 @@ def get_facet_dofs_by_gmsh_tag(domain, functionspace, location):
         if domain.rank == 0:
             flattened = np.hstack(global_found_entities)
             nnn = np.size(flattened)
-            print(f"{location}, global_entities = ", nnn)
+            _vprint(domain.rank, f"{location}, global_entities = {nnn}", level=2)
 
     # if len(found_entities) == 0:
     #     warnings.warn(f"Found no facets using location = {location}.")
@@ -65,8 +83,7 @@ def build_vel_bc_by_type(bc_type, domain, functionspace, bc_location):
         dolfinx.fem.dirichletbc: A dolfinx dirichlet boundary condition
     """
 
-    if domain.rank == 0:
-        print(f"Setting '{bc_type}' BC on {bc_location}")
+    _vprint(domain.rank, f"Setting '{bc_type}' BC on {bc_location}", level=1)
 
     if bc_type == "noslip":
         if domain.ndim == 2:
@@ -106,6 +123,32 @@ def build_vel_bc_by_type(bc_type, domain, functionspace, bc_location):
 
 
 class InflowVelocity:
+    """Callable inflow velocity profile for use as a Dirichlet boundary condition.
+
+    Supports the following profile types, selected via
+    ``params.fluid.velocity_profile_type``:
+
+    * ``"uniform"`` – constant streamwise velocity equal to ``u_ref``.
+    * ``"parabolic"`` – parabolic Poiseuille-like profile.
+    * ``"loglaw"`` – atmospheric surface-layer log-law profile.
+    * ``"specified_from_file"`` – time-varying 3-D inflow field read from an
+      HDF5 file and interpolated to the current mesh and time.
+
+    An optional cosine ramp (``params.fluid.ramp_window``) smoothly increases
+    the inflow speed from zero to ``u_ref`` during the early simulation phase.
+
+    Attributes:
+        ndim (int): Number of spatial dimensions of the mesh.
+        params (:obj:`pvade.IO.Parameters.SimParams`): Simulation parameters.
+        current_time (float): Current simulation time used when interpolating
+            time-varying inflow data.
+        u_ref (float): Effective reference velocity computed from the inflow
+            file (only set when *velocity_profile_type* is
+            ``"specified_from_file"``).
+        inflow_t_final (float): The last time instant available in the inflow
+            HDF5 file.
+    """
+
     def __init__(self, ndim, params, current_time):
         """Inflow velocity object
 
@@ -117,6 +160,48 @@ class InflowVelocity:
         self.params = params
         self.current_time = current_time
 
+        if self.params.fluid.velocity_profile_type == "specified_from_file":
+            with h5py.File(self.params.fluid.h5_filename, "r") as fp:
+                self.time_index = fp["time_index"][:]
+                self.y_coordinates = fp["y_coordinates"][:]
+                self.z_coordinates = fp["z_coordinates"][:]
+                self.u = fp["u"][:]
+                self.v = fp["v"][:]
+                self.w = fp["w"][:]
+
+            # Create the interpolators for the time-averaged values
+            x0_bar = (self.z_coordinates, self.y_coordinates)
+
+            self.interp_u_bar = interp.RegularGridInterpolator(
+                x0_bar, np.mean(self.u, axis=0), bounds_error=False, fill_value=None
+            )
+            self.interp_v_bar = interp.RegularGridInterpolator(
+                x0_bar, np.mean(self.v, axis=0), bounds_error=False, fill_value=None
+            )
+            self.interp_w_bar = interp.RegularGridInterpolator(
+                x0_bar, np.mean(self.w, axis=0), bounds_error=False, fill_value=None
+            )
+
+            # Create the known axes for our interpolators (t0, z0, y0) for instantaneous values
+            x0 = (self.time_index, self.z_coordinates, self.y_coordinates)
+
+            self.interp_u = interp.RegularGridInterpolator(
+                x0, self.u, bounds_error=False, fill_value=None
+            )
+            self.interp_v = interp.RegularGridInterpolator(
+                x0, self.v, bounds_error=False, fill_value=None
+            )
+            self.interp_w = interp.RegularGridInterpolator(
+                x0, self.w, bounds_error=False, fill_value=None
+            )
+
+            self.inflow_t_final = self.time_index[
+                -1
+            ]  # [s] time of last timestep of inflow file
+
+            # calculate u_ref from input .h5 file and apply
+            self.calculate_u_ref(params)
+
     def __call__(self, x):
         """Define an inflow expression for use as boundary condition
 
@@ -127,6 +212,7 @@ class InflowVelocity:
             np.ndarray: Value of velocity at each coordinate in input array
         """
 
+        # Preallocated velocity vector that we will fill
         inflow_values = np.zeros((self.ndim, x.shape[1]), dtype=PETSc.ScalarType)
 
         # if self.first_call_to_inflow_velocity:
@@ -138,7 +224,7 @@ class InflowVelocity:
         #     time_vary_u_ref goes from 0 -> u_ref smoothly over ramp_up_window time
         #     e.g., start velocity at 0, and by t=1.0 seconds, achieve full inflow speed
 
-        ramp_window = self.params.fluid.time_varying_inflow_window
+        ramp_window = self.params.fluid.ramp_window
 
         if ramp_window > 0.0 and self.current_time <= ramp_window:
             time_vary_u_ref = (
@@ -176,24 +262,61 @@ class InflowVelocity:
         elif self.params.fluid.velocity_profile_type == "loglaw":
             z0 = self.params.fluid.z0
             d0 = self.params.fluid.d0
+            psi = self.params.fluid.psi
             z_hub = self.params.pv_array.elevation
 
             # handle panels3d
             if self.ndim == 3:
                 inflow_values[0] = (
                     (time_vary_u_ref)
-                    * np.log(((x[2]) - d0) / z0)
-                    / (np.log((z_hub - d0) / z0))
+                    * (np.log(((x[2]) - d0) / z0) - psi)
+                    / (np.log((z_hub - d0) / z0) - psi)
                 )
 
             # handle panels2d
             elif self.ndim == 2:
                 # print("this is 2d")
                 inflow_values[0] = (
-                    (time_vary_u_ref)  # shouldn't this be u_star?
-                    * np.log(((x[1]) - d0) / z0)
-                    / (np.log((z_hub - d0) / z0))
+                    (time_vary_u_ref)
+                    * (np.log(((x[1]) - d0) / z0) - psi)
+                    / (np.log((z_hub - d0) / z0) - psi)
                 )
+
+        elif self.params.fluid.velocity_profile_type == "specified_from_file":
+
+            # only needed at time zero
+            if self.current_time == 0.0:
+                # These are the points over the entirety of the domain
+                xi_bulk = np.vstack((x[2], x[1])).T
+
+                u_vel_bar = self.interp_u_bar(
+                    xi_bulk
+                )  # this grabs u,v,w at current position
+                v_vel_bar = self.interp_v_bar(xi_bulk)
+                w_vel_bar = self.interp_w_bar(xi_bulk)
+
+                # Assign the mean inflow values
+                # Make this assignment everywhere *knowing* the masked point values will be overwritten
+                inflow_values[0, :] = u_vel_bar
+                inflow_values[1, :] = v_vel_bar
+                inflow_values[2, :] = w_vel_bar
+
+            # assuming always a timeseries for now
+            xi_0_mask = x[0] < self.params.domain.x_min + 1e-5
+            ti = self.current_time * np.ones(np.sum(xi_0_mask))
+
+            # These are the points that define the inflow plane only
+            xi = np.vstack((ti, x[2][xi_0_mask], x[1][xi_0_mask])).T
+
+            u_vel = self.interp_u(xi)  # this grabs u,v,w at current time and at x inlet
+            v_vel = self.interp_v(xi)
+            w_vel = self.interp_w(xi)
+
+            # Assign the turbulent values (from the interpolator+file) to the masked inflow plane
+            # this will overwrite the previously-assigned averaged values
+            inflow_values[0, xi_0_mask] = u_vel
+            inflow_values[1, xi_0_mask] = v_vel
+            inflow_values[2, xi_0_mask] = w_vel
 
         # if self.first_call_to_inflow_velocity:
         #     print("inflow_values = ", inflow_values[0])
@@ -201,8 +324,58 @@ class InflowVelocity:
 
         return inflow_values
 
+    def calculate_u_ref(self, params):
+        """Compute time-averaged inflow profile from file
+
+        Outputs:
+            u_ref : effective u_ref computed from input inflow file - velocity at panel elevation
+            u_inf : streamwise velocity in freestream (at highest elevation in domain)
+            z0
+        """
+
+        # TODO - add handling for 2D case
+
+        # compute the magnitude to account for other wind directions
+        umag = (self.u**2 + self.v**2) ** 0.5
+        umag_mean = np.average(
+            np.average(umag, axis=0), axis=-1
+        )  # vertical profile (averaged in time and y)
+
+        # extract u_ref at elevation height
+        z_idx = np.argmin(abs(self.z_coordinates - params.pv_array.elevation))
+        u_ref_calc = umag_mean[z_idx]
+
+        self.u_ref = u_ref_calc
+
 
 def get_inflow_profile_function(domain, params, functionspace, current_time):
+    """Build a DOLFINx function object containing the inflow velocity field.
+
+    Constructs a :class:`dolfinx.fem.Function` on *functionspace* and
+    populates it with the inflow velocity profile prescribed by
+    ``params.fluid.velocity_profile_type``. For the log-law profile, the
+    velocity is set to zero below the surface-layer height (``d0 + z0``) to
+    avoid logarithm singularities.
+
+    Args:
+        domain (:obj:`pvade.geometry.MeshManager.FSIDomain`): The domain
+            object, used to access the fluid mesh and MPI communicator.
+        params (:obj:`pvade.IO.Parameters.SimParams`): A SimParams object.
+        functionspace (dolfinx.fem.FunctionSpace): The velocity function space
+            on which the inflow profile is interpolated.
+        current_time (float): The simulation time at which the inflow profile
+            is evaluated (relevant for ``"specified_from_file"``).
+
+    Returns:
+        tuple:
+            - **inflow_function** (*dolfinx.fem.Function*): The interpolated
+              inflow velocity field.
+            - **inflow_velocity** (:class:`InflowVelocity`): The callable
+              object used for interpolation.
+            - **upper_cells** (*np.ndarray or None*): Mesh cell indices above
+              the surface-layer roughness height (only non-``None`` for the
+              log-law profile).
+    """
     ndim = domain.ndim
     # print('ndim = ',ndim)
 
@@ -224,18 +397,15 @@ def get_inflow_profile_function(domain, params, functionspace, current_time):
     upper_cells = None
 
     if params.fluid.velocity_profile_type == "parabolic":
-        if domain.rank == 0:
-            print("setting parabolic profile")
+        _vprint(domain.rank, "setting parabolic profile", level=1)
         inflow_function.interpolate(inflow_velocity)
 
     elif params.fluid.velocity_profile_type == "uniform":
-        if domain.rank == 0:
-            print("setting uniform profile")
+        _vprint(domain.rank, "setting uniform profile", level=1)
         inflow_function.interpolate(inflow_velocity)
 
     elif params.fluid.velocity_profile_type == "loglaw":
-        if domain.rank == 0:
-            print("setting loglaw profile")
+        _vprint(domain.rank, "setting loglaw profile", level=1)
         z0 = params.fluid.z0
         d0 = params.fluid.d0
         if ndim == 3:
@@ -259,11 +429,37 @@ def get_inflow_profile_function(domain, params, functionspace, current_time):
         )
 
         if len(upper_cells) == 0:
-            print(
-                "Warning: z0 and d0 may be outside the size of the domain"
+            _vprint(
+                domain.rank,
+                "Warning: z0 and d0 may be outside the size of the domain",
+                level=1,
             )  # just a bandaid for now
 
         inflow_function.interpolate(inflow_velocity, upper_cells)
+
+    elif params.fluid.velocity_profile_type == "specified_from_file":
+        _vprint(
+            domain.rank,
+            "Setting inflow velocity from {}".format(params.fluid.h5_filename),
+            level=1,
+        )
+        if params.general.debug_flag:
+            _vprint(
+                domain.rank,
+                "eff u_ref = {} m/s".format(inflow_velocity.u_ref),
+                level=2,
+            )
+        inflow_function.interpolate(inflow_velocity)
+
+        if params.solver.t_final > inflow_velocity.inflow_t_final:
+            _vprint(
+                domain.rank,
+                "WARNING: t_final ({:.2f} s) exceeds the final time in input inflow velocity file ({:.2f} s). "
+                "Simulation will fail at that point.".format(
+                    params.solver.t_final, inflow_velocity.inflow_t_final
+                ),
+                level=1,
+            )
 
     return inflow_function, inflow_velocity, upper_cells
 
@@ -308,8 +504,8 @@ def build_velocity_boundary_conditions(domain, params, functionspace, current_ti
         domain, params, functionspace, current_time
     )
 
-    if domain.rank == 0:
-        print("inflow_function = ", inflow_function.x.array[:])
+    # if domain.rank == 0:
+    #     print("inflow_function = ", inflow_function.x.array[:])
 
     dofs = get_facet_dofs_by_gmsh_tag(domain, functionspace, "x_min")
     bcu.append(dolfinx.fem.dirichletbc(inflow_function, dofs))

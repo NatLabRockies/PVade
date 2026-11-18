@@ -1,4 +1,11 @@
-"""Summary"""
+"""Modal (eigenvalue) analysis for structural mechanics.
+
+This module provides the :class:`ModalAnalysis` class, which assembles the
+structural mass and stiffness matrices and solves the generalised eigenvalue
+problem to obtain natural frequencies and mode shapes.  It shares the same
+time-integration infrastructure as :class:`~pvade.structure.ElasticityAnalysis.Elasticity`
+but is intended for free-vibration studies rather than time-domain forcing.
+"""
 
 import dolfinx
 import ufl
@@ -11,13 +18,57 @@ import scipy.interpolate as interp
 
 import warnings
 import os
+from pvade.IO.verbosity import emit_verbosity_print
 
 from pvade.structure.boundary_conditions import build_structure_boundary_conditions
 from contextlib import ExitStack
 
 
+def _vprint(rank, message, level=1):
+    """Rank-0 verbosity-aware print helper for modal analysis messages."""
+    if rank == 0:
+        emit_verbosity_print(message, level=level)
+
+
 class ModalAnalysis:
-    """This class solves the CFD problem"""
+    """Modal (eigenvalue) analysis solver.
+
+    Assembles the structural mass and stiffness matrices and solves the
+    generalised eigenvalue problem to extract natural frequencies and mode
+    shapes of the structure.  The class also exposes the same
+    update-formula helpers as :class:`~pvade.structure.ElasticityAnalysis.Elasticity`
+    so that it can be used as a drop-in replacement when only the linear
+    structural response is of interest.
+
+    Attributes:
+        comm: MPI communicator shared by all PVade objects.
+        rank (int): Rank of this MPI process.
+        num_procs (int): Total number of MPI processes.
+        structural_analysis (bool): Flag passed through from *params*.
+        name (str): Human-readable identifier (always ``"structure"``).
+        V (dolfinx.fem.FunctionSpace): Lagrange vector function space of
+            degree 2 on the structure mesh.
+        first_call_to_solver (bool): Flag indicating whether the solver has
+            been called for the first time.
+        num_V_dofs (int): Global number of degrees of freedom in ``V``.
+        ndim (int): Topological dimension of the structure mesh.
+        facet_dim (int): Facet dimension (``ndim - 1``).
+        hmin (float): Global minimum cell diameter across all MPI ranks.
+        rho (dolfinx.fem.Constant): Mass density :math:`\\rho`.
+        eta_m (dolfinx.fem.Constant): Rayleigh mass-proportional damping coefficient.
+        eta_k (dolfinx.fem.Constant): Rayleigh stiffness-proportional damping coefficient.
+        alpha_m (dolfinx.fem.Constant): Generalized-alpha parameter :math:`\\alpha_m`.
+        alpha_f (dolfinx.fem.Constant): Generalized-alpha parameter :math:`\\alpha_f`.
+        gamma (float): Generalized-alpha parameter :math:`\\gamma`.
+        beta (float): Generalized-alpha parameter :math:`\\beta`.
+        E (float): Young's modulus.
+        poissons_ratio (float): Poisson's ratio.
+        lame_mu (float): First Lamé parameter :math:`\\mu`.
+        lame_lambda (float): Second Lamé parameter :math:`\\lambda`.
+        dt_st (dolfinx.fem.Constant): Structural time step size.
+        north_east_corner_dofs (np.ndarray): DOF indices for the probe point
+            at the north-east corner of the structure.
+    """
 
     def __init__(self, domain, structural_analysis, params):
         """Initialize the fluid solver
@@ -72,9 +123,8 @@ class ModalAnalysis:
         self.comm.Allreduce(hmin_local, self.hmin, op=MPI.MIN)
         self.hmin = self.hmin[0]
 
-        if self.rank == 0:
-            print(f"hmin on structure = {self.hmin}")
-            print(f"Total num dofs on structure = {self.num_V_dofs}")
+        _vprint(self.rank, f"hmin on structure = {self.hmin}", level=1)
+        _vprint(self.rank, f"Total num dofs on structure = {self.num_V_dofs}", level=1)
 
         # Mass density
         self.rho = dolfinx.fem.Constant(
@@ -93,14 +143,19 @@ class ModalAnalysis:
 
         # Define structural properties
         self.E = params.structure.elasticity_modulus  # 1.0e9
-        self.ν = params.structure.poissons_ratio  # 0.3
-        self.μ = self.E / (2.0 * (1.0 + self.ν))
-        self.λ = self.E * self.ν / ((1.0 + self.ν) * (1.0 - 2.0 * self.ν))
+        self.poissons_ratio = params.structure.poissons_ratio  # 0.3
+        self.lame_mu = self.E / (2.0 * (1.0 + self.poissons_ratio))
+        self.lame_lambda = (
+            self.E
+            * self.poissons_ratio
+            / ((1.0 + self.poissons_ratio) * (1.0 - 2.0 * self.poissons_ratio))
+        )
 
-        if self.rank == 0:
-            print(
-                f"mu = {self.μ} lambda = {self.λ} E = {self.E} nu = {self.ν} density = {self.rho.value}"
-            )
+        _vprint(
+            self.rank,
+            f"mu = {self.lame_mu} lambda = {self.lame_lambda} E = {self.E} nu = {self.poissons_ratio} density = {self.rho.value}",
+            level=1,
+        )
 
         # time step
         self.dt_st = dolfinx.fem.Constant(domain.structure.msh, (params.structure.dt))
@@ -195,10 +250,11 @@ class ModalAnalysis:
                         [0.0, 0.0, params.pv_array.elevation]
                     )
 
-                    if params.rank == 0:
-                        print(
-                            f"Measuring panel deformation at (x, y, z) position {final_position}"
-                        )
+                    _vprint(
+                        params.rank,
+                        f"Measuring panel deformation at (x, y, z) position {final_position}",
+                        level=2,
+                    )
 
                     eps = 1.0e-4
                     near_x = np.logical_and(
@@ -247,6 +303,26 @@ class ModalAnalysis:
         self.bc = build_structure_boundary_conditions(domain, params, self.V)
 
     def update_a(self, u, u_old, v_old, a_old, dt, beta, ufl=True):
+        """Compute the new acceleration using the Newmark update formula.
+
+        .. math::
+
+            a = \\frac{u - u_0 - v_0 \\, dt}{\\beta \\, dt^2}
+                - \\frac{1 - 2\\beta}{2\\beta} \\, a_0
+
+        Args:
+            u: Current displacement field (UFL expression or NumPy array).
+            u_old: Displacement field at the previous time step.
+            v_old: Velocity field at the previous time step.
+            a_old: Acceleration field at the previous time step.
+            dt: Time step size (UFL constant or Python float).
+            beta: Newmark :math:`\\beta` parameter.
+            ufl (bool): If ``True``, operands are UFL objects; if ``False``,
+                Python floats are used for ``dt`` and ``beta``.
+
+        Returns:
+            Updated acceleration field (UFL expression or NumPy array).
+        """
         # Update formula for acceleration
         # a = 1/(2*beta)*((u - u0 - v0*dt)/(0.5*dt*dt) - (1-2*beta)*a0)
         if ufl:
@@ -262,6 +338,26 @@ class ModalAnalysis:
     # Update formula for velocity
     # v = dt * ((1-gamma)*a0 + gamma*a) + v0
     def update_v(self, a, u_old, v_old, a_old, dt, gamma, ufl=True):
+        """Compute the new velocity using the Newmark update formula.
+
+        .. math::
+
+            v = v_0 + dt \\left[(1 - \\gamma) \\, a_0 + \\gamma \\, a \\right]
+
+        Args:
+            a: Current acceleration field (UFL expression or NumPy array).
+            u_old: Displacement field at the previous time step (unused,
+                kept for API consistency).
+            v_old: Velocity field at the previous time step.
+            a_old: Acceleration field at the previous time step.
+            dt: Time step size (UFL constant or Python float).
+            gamma: Newmark :math:`\\gamma` parameter.
+            ufl (bool): If ``True``, operands are UFL objects; if ``False``,
+                Python floats are used for ``dt`` and ``gamma``.
+
+        Returns:
+            Updated velocity field (UFL expression or NumPy array).
+        """
         if ufl:
             dt_ = dt
             gamma_ = gamma
@@ -283,6 +379,20 @@ class ModalAnalysis:
         u_old.x.array[:] = u_vec
 
     def avg(self, x_old, x_new, alpha):
+        """Return the generalized-alpha weighted average of two fields.
+
+        .. math::
+
+            x_{\\alpha} = \\alpha \\, x_{\\text{old}} + (1 - \\alpha) \\, x_{\\text{new}}
+
+        Args:
+            x_old: Field value at the previous time step.
+            x_new: Field value at the current time step.
+            alpha: Weighting parameter.
+
+        Returns:
+            Weighted average of ``x_old`` and ``x_new``.
+        """
         return alpha * x_old + (1 - alpha) * x_new
 
     def build_forms(self, domain, params):
@@ -334,42 +444,44 @@ class ModalAnalysis:
 
         # # Stress tensor
         # def sigma(r):
-        #     return dolfinx.fem.form(2.0*self.μ*ufl.sym(ufl.grad(r)) + self.λ *ufl.tr(ufl.sym(ufl.grad(r)))*ufl.Identity(len(r)))
+        #     return dolfinx.fem.form(2.0*self.lame_mu*ufl.sym(ufl.grad(r)) + self.lame_lambda *ufl.tr(ufl.sym(ufl.grad(r)))*ufl.Identity(len(r)))
 
         # # Mass form
         # def m(u, u_):
         #     return dolfinx.fem.form(self.rho*ufl.inner(u, u_)*ufl.dx)
 
         # # Elastic stiffness form
-        # def k(u, u_):
+        # def k_nominal(u, u_):
         #     return dolfinx.fem.form(ufl.inner(sigma(u), ufl.sym(ufl.grad(u_)))*ufl.dx)
 
         # # Rayleigh damping form
         # def c(u, u_):
-        #     return dolfinx.fem.form(self.eta_m*m(u, u_) + self.eta_k*k(u, u_))
+        #     return dolfinx.fem.form(self.eta_m*m(u, u_) + self.eta_k*k_nominal(u, u_))
 
         # # Work of external forces
         # def Wext(u_):
         #     return ufl.dot(u_, self.f)*self.ds #dss(3)
 
         def sigma(r):
-            return self.λ * ufl.nabla_div(r) * ufl.Identity(
+            return self.lame_lambda * ufl.nabla_div(r) * ufl.Identity(
                 len(r)
-            ) + 2 * self.μ * ufl.sym(ufl.grad(r))
+            ) + 2 * self.lame_mu * ufl.sym(ufl.grad(r))
 
         def m(u, u_):
             return self.rho * ufl.inner(u, u_) * ufl.dx
 
-        def k(u, u_):
+        def k_cauchy(u, u_):
             return ufl.inner(sigma(u), ufl.grad(u_)) * ufl.dx
 
-        def k(u, u_):
+        def k_nominal(u, u_):
             # return ufl.inner(sigma(u),ufl.grad(u_))*ufl.dx
             # updated lagrangian form
             F = ufl.grad(u) + ufl.Identity(len(u))
             E = 0.5 * (F.T * F - ufl.Identity(len(u)))
-            # S = self.λ *ufl.tr(E)*ufl.Identity(len(u))   + 2*self.μ * (E - ufl.tr(E)*ufl.Identity(len(u))  /3.0)
-            S = self.λ * ufl.tr(E) * ufl.Identity(len(u)) + 2 * self.μ * (E)
+            # S = self.lame_lambda *ufl.tr(E)*ufl.Identity(len(u))   + 2*self.lame_mu * (E - ufl.tr(E)*ufl.Identity(len(u))  /3.0)
+            S = self.lame_lambda * ufl.tr(E) * ufl.Identity(
+                len(u)
+            ) + 2 * self.lame_mu * (E)
 
             # return ufl.inner(F * S, ufl.grad(u_)) * ufl.dx
             return ufl.inner(P_(u), ufl.grad(u_)) * ufl.dx
@@ -400,7 +512,7 @@ class ModalAnalysis:
             # return lamda * ufl.tr(E) * I + 2.0 * mu * (E - ufl.tr(E) * I / 3.0)
             # TODO: Why does the above form give a better result and where does it come from?
 
-            S_svk = self.λ * ufl.tr(E) * I + 2.0 * self.μ * E
+            S_svk = self.lame_lambda * ufl.tr(E) * I + 2.0 * self.lame_mu * E
             return S_svk
 
         # The first Piola–Kirchhoff stress tensor, P = F*S
@@ -411,15 +523,15 @@ class ModalAnalysis:
             return F * S
 
         def c(u, u_):
-            return self.eta_m * m(u, u_) + self.eta_k * k(u, u_)
+            return self.eta_m * m(u, u_) + self.eta_k * k_nominal(u, u_)
 
         # self.uh_exp = dolfinx.fem.Function(self.V,  name="Deformation")
 
-        def σ(v):
-            """Return an expression for the stress σ given a displacement field"""
-            return 2.0 * self.μ * ufl.sym(ufl.grad(v)) + self.λ * ufl.tr(
-                ufl.sym(ufl.grad(v))
-            ) * ufl.Identity(len(v))
+        # def σ(v):
+        #     """Return an expression for the stress σ given a displacement field"""
+        #     return 2.0 * self.lame_mu * ufl.sym(ufl.grad(v)) + self.lame_lambda * ufl.tr(
+        #         ufl.sym(ufl.grad(v))
+        #     ) * ufl.Identity(len(v))
 
         # source term ($f = \rho \omega^2 [x_0, \, x_1]$)
         # self.ω, self.ρ = 300.0, 10.0
@@ -458,7 +570,7 @@ class ModalAnalysis:
         self.res = (
             m(self.avg(self.a_old, a_new, self.alpha_m), self.u_)
             + c(self.avg(self.v_old, v_new, self.alpha_f), self.u_)
-            + k(self.avg(self.u_old, self.u, self.alpha_f), self.u_)
+            + k_nominal(self.avg(self.u_old, self.u, self.alpha_f), self.u_)
             - self.rho * ufl.inner(self.f, self.u_) * ufl.dx
             - ufl.dot(ufl.dot(self.stress_predicted * J * ufl.inv(F.T), n), self.u_)
             * self.ds
@@ -584,13 +696,12 @@ class ModalAnalysis:
     def solve(self, params, dataIO):
         # def σ(v):
         #     """Return an expression for the stress σ given a displacement field"""
-        #     return 2.0 * self.μ * ufl.sym(ufl.grad(v)) + self.λ * ufl.tr(
+        #     return 2.0 * self.lame_mu * ufl.sym(ufl.grad(v)) + self.lame_lambda * ufl.tr(
         #         ufl.sym(ufl.grad(v))
         #     ) * ufl.Identity(len(v))
 
         if self.first_call_to_solver:
-            if self.rank == 0:
-                print("Starting Strutural Solution")
+            _vprint(self.rank, "Starting Structural Solution", level=1)
 
             self._assemble_system(params)
 
@@ -630,7 +741,7 @@ class ModalAnalysis:
             nw_corner_accel = self.u.vector.array[3 * idx : 3 * idx + 3].astype(
                 np.float64
             )
-            print(nw_corner_accel)
+            _vprint(self.rank, str(nw_corner_accel), level=2)
         except:
             nw_corner_accel = np.zeros(3, dtype=np.float64)
 

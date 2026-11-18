@@ -1,9 +1,24 @@
+"""Boundary condition utilities for the structural mechanics solver.
+
+This module provides helper functions for identifying structural boundary
+entities and assembling Dirichlet boundary conditions on the structure mesh,
+including both surface-based BCs (fixed edges/faces) and line-based BCs
+(torque-tube and motor-mount connections along 1-D fixation lines).
+"""
+
 import dolfinx
 from petsc4py import PETSc
 
 import numpy as np
 
 import warnings
+from pvade.IO.verbosity import emit_verbosity_print
+
+
+def _vprint(rank, message, level=1):
+    """Rank-0 verbosity-aware print helper for structure BC messages."""
+    if rank == 0:
+        emit_verbosity_print(message, level=level)
 
 
 def get_facet_dofs_by_gmsh_tag(domain, functionspace, location):
@@ -55,8 +70,7 @@ def build_vel_bc_by_type(bc_type, domain, functionspace, bc_location):
         dolfinx.fem.dirichletbc: A dolfinx dirichlet boundary condition
     """
 
-    if domain.rank == 0:
-        print(f"Setting '{bc_type}' BC on {bc_location}")
+    _vprint(domain.rank, f"Setting '{bc_type}' BC on {bc_location}", level=1)
 
     if bc_type == "noslip":
         zero_vec = dolfinx.fem.Constant(
@@ -120,42 +134,29 @@ class InflowVelocity:
         inflow_dy = H - x[1]
         inflow_dz = H - x[2]
 
-        u_hub = self.params.fluid.u_ref
+        if self.params.fluid.velocity_profile_type == "specified_from_file":
+            u_hub = self.u_ref
+        else:
+            u_hub = self.params.fluid.u_ref
+
         z_hub = self.params.pv_array.elevation
 
         if self.params.general.example == "cylinder3d":
-            inflow_values[0] = (
-                16.0
-                * self.params.fluid.u_ref
-                * x[1]
-                * x[2]
-                * inflow_dy
-                * inflow_dz
-                / H**4
-            )
+            inflow_values[0] = 16.0 * u_hub * x[1] * x[2] * inflow_dy * inflow_dz / H**4
         elif self.params.general.example == "cylinder2d":
             inflow_values[0] = (
-                4
-                * (self.params.fluid.u_ref)
-                * np.sin(np.pi / 8)
-                * x[1]
-                * (0.41 - x[1])
-                / (0.41**2)
+                4 * (u_hub) * np.sin(np.pi / 8) * x[1] * (0.41 - x[1]) / (0.41**2)
             )
         elif (
             self.params.general.example == "panels3d"
             or self.params.general.example == "heliostats3d"
         ):
             inflow_values[0] = (
-                (self.params.fluid.u_ref)
-                * np.log(((x[2]) - d0) / z0)
-                / (np.log((z_hub - d0) / z0))
+                (u_hub) * np.log(((x[2]) - d0) / z0) / (np.log((z_hub - d0) / z0))
             )
         elif self.params.general.example == "panels2d":
             inflow_values[0] = (
-                (self.params.fluid.u_ref)
-                * np.log(((x[1]) - d0) / z0)
-                / (np.log((z_hub - d0) / z0))
+                (u_hub) * np.log(((x[1]) - d0) / z0) / (np.log((z_hub - d0) / z0))
             )
 
         return inflow_values
@@ -271,6 +272,25 @@ def build_pressure_boundary_conditions(domain, params, functionspace):
 
 
 def build_structure_boundary_conditions(domain, params, functionspace):
+    """Build all Dirichlet boundary conditions for the structure.
+
+    Applies zero-displacement constraints on all panel surface faces listed
+    in ``params.structure.bc_list``.  Optionally pins nodes along the torque
+    tube line (``params.structure.tube_connection``) and along motor-mount
+    lines (``params.structure.motor_connection``) using a collinearity test.
+
+    Args:
+        domain (:obj:`pvade.geometry.MeshManager.FSIDomain`): A Domain object
+            that holds the structure submesh and facet tags.
+        params (:obj:`pvade.IO.Parameters.SimParams`): A SimParams object
+            containing boundary condition settings and panel geometry.
+        functionspace (dolfinx.fem.FunctionSpace): The vector displacement
+            function space on which boundary conditions are applied.
+
+    Returns:
+        list[dolfinx.fem.DirichletBC]: A list of assembled Dirichlet boundary
+        condition objects ready to be passed to the nonlinear solver.
+    """
     facet_dim = domain.ndim - 1
     if domain.ndim == 2:
         zero_vec = dolfinx.fem.Constant(
