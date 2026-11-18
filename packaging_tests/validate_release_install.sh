@@ -63,7 +63,6 @@ python "$source_root/pvade_main.py" --input_file "$source_root/examples/panels2d
 pvade --input "$source_root/examples/panels2d.yaml" \
     --general.output_dir "$runner_temp/pvade-pypi-single" \
     --solver.t_final 0.001
-
 mpiexec -n 2 pvade --input_file "$source_root/pvade/tests/input/yaml/flag2d.yaml" \
-    --general.output_dir "$runner_temp/pvade-pypi-mpi" \
-    --general.input_mesh_dir "$source_root/pvade/tests/input/mesh/flag2d"
+    --general.output_dir "$runner_temp/pvade-pypi-mpi"
+
