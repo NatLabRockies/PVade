@@ -10,5 +10,12 @@ dependencies:
   - setuptools=80.9.0
   - petsc4py
   - mpi4py
+  - h5py
   - python-gmsh
+  - jsonschema
+  - numba
+  - pandas
+  - pyyaml
+  - scipy
+  - tqdm
   - pip
