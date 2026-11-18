@@ -7,7 +7,9 @@ on:
   pull_request:
 
 
-    branches: [ main, dev, sync,dev_wrap]
+
+    branches: [ main, dev, sync, dev_wrap]
+
 
 
 
@@ -40,6 +42,8 @@ jobs:
         shell: bash -l {0}
         run: PYTHONPATH=. pytest -sv pvade/tests/
       - name: test all inputs
+        env:
+          OMPI_MCA_regx: "naive"
         shell: bash -l {0}
         run: pytest -sv  test_all_inputs.py 
 
