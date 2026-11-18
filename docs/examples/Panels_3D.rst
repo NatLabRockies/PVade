@@ -86,7 +86,7 @@ From the repository root:
 
 .. code-block:: bash
 
-	 conda run -n PVade python pvade_main.py --input examples/panels3d.yaml
+	 conda run -n pvade pvade --input examples/panels3d.yaml
 
 PV Panels 3D Expected Output
 -------------------------

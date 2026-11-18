@@ -39,7 +39,7 @@ From the repository root:
 
 .. code-block:: bash
 
-  conda run -n PVade python "tutorials/moving_cylinder/cylinderflow.py"
+  conda run -n pvade python "tutorials/moving cylinder/cylinderflow.py"
 
 Vortex Shedding Animation
 -------------------------
@@ -57,6 +57,6 @@ vortex shedding.
 
 .. note::
   - This script is a standalone solver example and is separate from the
-    YAML-driven ``pvade_main.py --input_file ...`` workflow.
+    YAML-driven ``pvade --input ...`` workflow.
   - You can tune mesh and physics parameters directly in the script
     (for example ``Re``, ``dt``, and mesh resolution variables).

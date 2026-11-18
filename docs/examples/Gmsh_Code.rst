@@ -57,12 +57,12 @@ From the repository root, for example:
 
 .. code-block:: bash
 
-   conda run -n PVade python tutorials/Gmsh_code/demo/demo_elipsoidal_shape_triangle_surface.py
+   conda run -n pvade python tutorials/Gmsh_code/demo/demo_elipsoidal_shape_triangle_surface.py
 
 or
 
 .. code-block:: bash
 
-   conda run -n PVade python tutorials/Gmsh_code/fake_terrain/fake_terrain_shape_triangle_surface.py
+   conda run -n pvade python tutorials/Gmsh_code/fake_terrain/fake_terrain_shape_triangle_surface.py
 
 Outputs are generated in the script working directory as VTK/BREP files.

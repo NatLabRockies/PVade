@@ -23,13 +23,13 @@ From the repository root:
 
 .. code-block:: bash
 
-   conda run -n PVade pytest pvade/tests
+   conda run -n pvade pytest pvade/tests
 
-To target a specific input file used by the parametrized tests:
+To run a focused test module:
 
 .. code-block:: bash
 
-   conda run -n PVade pytest pvade/tests --input-file examples/panels3d.yaml
+   conda run -n pvade pytest pvade/tests/test_Parameters.py
 
 Markers
 -------

@@ -61,11 +61,11 @@ Running this example locally
 
 This example is executed in parallel using::
 
-  mpirun -n 8 python pvade_main.py --input_file input/turbinflow_duramat_case_study.yaml
+  mpirun -n 8 pvade --input tutorials/synthetic_turbulent_inflow/turbinflow_duramat_case_study.yaml
 
 For testing purposes, this example can be run for less time using::
 
-  mpirun -n 8 python pvade_main.py --input_file input/turbinflow_duramat_case_study.yaml --domain.l_char 2.5 --solver.t_final 0.2
+  mpirun -n 8 pvade --input tutorials/synthetic_turbulent_inflow/turbinflow_duramat_case_study.yaml --domain.l_char 2.5 --solver.t_final 0.2
 
 
 Running this example on HPC

@@ -15,7 +15,6 @@ import shutil
 from dolfinx.io import XDMFFile, VTKFile
 from mpi4py import MPI
 from pathlib import Path
-import pytest
 import dolfinx
 from petsc4py import PETSc
 import json
