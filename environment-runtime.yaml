@@ -1,0 +1,13 @@
+name: pvade
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python >=3.10,<3.11
+  - fenics-dolfinx=0.6
+  - openmpi=4.1.6
+  - libcxx <23
+  - setuptools=80.9.0
+  - petsc4py
+  - mpi4py
+  - pip

@@ -46,7 +46,7 @@
     }
   ],
   "identifier": "https://doi.org/10.11578/dc.20231208.1",
-  "codeRepository": "https://github.com/NREL/PVade",
+  "codeRepository": "https://github.com/NatLabRockies/PVade",
   "datePublished": "2023-09-29",
   "dateModified": "2023-09-29",
   "dateCreated": "2023-09-29",
@@ -55,6 +55,6 @@
   "license": "BSD-3-Clause",
   "programmingLanguage": "Python",
   "title": "PVade (PV Aerodynamic Design Engineering) [SWR-23-49]",
-  "version": "0.3.0"
+  "version": "1.1.0"
 }
 

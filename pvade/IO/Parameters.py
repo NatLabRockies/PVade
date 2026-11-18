@@ -1,6 +1,7 @@
 import os
 import yaml
 import argparse
+from importlib import resources
 
 from mpi4py import MPI
 from pandas import json_normalize
@@ -46,8 +47,8 @@ class SimParams:
         self.verbosity_level = get_verbosity_level()
 
         # Open the schema file for reading and load its contents into a dictionary
-        pvade_dir = os.path.dirname(os.path.abspath(__file__))
-        with open(os.path.join(pvade_dir, "input_schema.yaml"), "r") as fp:
+        schema_resource = resources.files("pvade.IO").joinpath("input_schema.yaml")
+        with schema_resource.open("r", encoding="utf-8") as fp:
             self.schema_dict = yaml.safe_load(fp)
 
         # Flatten the schema dictionary to make navigation and CLI parsing easier
@@ -207,6 +208,8 @@ class SimParams:
 
         parser.add_argument(
             "--input_file",
+            "--input",
+            dest="input_file",
             metavar="",
             type=str,
             help="The full path to the input file, e.g., 'intputs/my_params.yaml'",

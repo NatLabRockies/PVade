@@ -11,34 +11,112 @@ For more information about FEniCSx please refer to https://github.com/FEniCS/dol
 In addition to FEniCSx, PVade uses multiple Python packages as part of the pre- and post-processing steps.
 PVade dependencies are included in environment.yaml.
 
-To start using PVade, we can use Conda/Mamba to create an environment containing all the necessary dependencies.
+Installation
+------------
+
+PVade has three installation paths: public PyPI installation (pending the first successful publication), developer installation from this repository, and installation into an HPC environment with externally provisioned native libraries. Pip does not install a complete DOLFINx/PETSc/MPI stack.
+
+A. Public PyPI installation (pending)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PVade 1.1.0 is being prepared as the first public PyPI release. These instructions remain pending until publication succeeds; do not use ``pip install pvade`` before the release is announced. Download the runtime-only Conda environment definition directly from the official repository, without cloning PVade. It provisions the tested Python 3.10, DOLFINx 0.6, PETSc, and OpenMPI stack, with the ``libcxx`` and setuptools pins validated for DOLFINx 0.6 on macOS::
+
+   curl -fsSLO https://raw.githubusercontent.com/NatLabRockies/PVade/main/environment-runtime.yaml
+   mamba env create -f environment-runtime.yaml
+   mamba activate pvade
+
+After PVade 1.1.0 has been published, install PVade from PyPI::
+
+   python -m pip install pvade
+
+Then verify and run it::
+
+   python -m pip show pvade
+   python -c "import pvade; print(pvade.__file__)"
+   pvade --help
+   pvade --input /path/to/your/input.yaml
+
+If you do not have a simulation input yet, download a sample configuration directly from the official repository without cloning it::
+
+   curl -fsSLO https://raw.githubusercontent.com/NatLabRockies/PVade/main/examples/panels2d.yaml
+   pvade --input panels2d.yaml
+
+The YAML input file is user-supplied; example files are in the source repository and are not part of the installed wheel. The runtime environment provisions native solver components first; pip then installs PVade and its declared Python dependencies. If the native environment has site-specific constraints, follow the HPC instructions below instead.
+
+B. Developer installation from source
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+From a PVade repository checkout, create the development environment defined in ``environment.yaml``. Its environment name is ``pvade``::
+
+   mamba env create -f environment.yaml
+   mamba activate pvade
+
+The environment file installs FEniCSx/DOLFINx, MPICH, and the Python libraries needed by PVade. After activating it, install the checkout using a separate pip command::
+
+   python -m pip install --no-deps -e .
+
+Editable mode makes source changes immediately visible; ``--no-deps`` leaves dependency management to Conda so pip does not replace or re-resolve MPI/PETSc-related packages. The pip command is deliberately separate from the environment file's ``pip:`` requirements because Conda treats entries in that list as requirements and does not accept pip install options such as ``--no-deps`` there.
+
+Install from source in an existing environment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The environment creation above installs PVade as part of the checkout. If the environment already exists and PVade has not yet been installed, run this from the repository root while it is active::
+
+   python -m pip install --no-deps -e .
+
+For a non-editable installation from the checkout, use ``python -m pip install --no-deps .`` instead. Both commands install the ``pvade`` console command. Install the DOLFINx/PETSc/MPI stack first using the supported Conda environment or compatible HPC modules; these native components are intentionally not resolved by pip.
+
+C. Verify installation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Run these commands in the activated environment::
+
+   python -m pip show pvade
+   python -c "import pvade; print(pvade.__file__)"
+   pvade --help
+   python -m pvade --help
+
+D. Run PVade
+~~~~~~~~~~~~
+
+From the repository root, run an included example input file with::
+
+   pvade --input examples/panels2d.yaml
+
+The legacy ``--input_file`` spelling is also accepted::
+
+   pvade --input_file examples/panels2d.yaml
+
+For a custom input file, give the path to that file::
+
+   pvade --input /path/to/your/input.yaml
+
+The original script invocation remains supported::
+
+   python pvade_main.py --input examples/panels2d.yaml
+
+E. HPC installations
+~~~~~~~~~~~~~~~~~~~~
+
+On HPC systems, provision compatible DOLFINx, PETSc, MPI, and the ordinary Python dependencies through the site's Conda/Mamba environment or modules before installing PVade. When all package dependencies are already available, install the published release without allowing pip to modify that environment::
+
+   python -m pip install --no-deps pvade
+
+For development from a source checkout, use ``python -m pip install --no-deps -e .`` from the repository root instead. Do not use ``--no-deps`` unless every dependency declared by PVade is already importable in that environment. Do not use pip to replace a site-provided native stack.
 
 To obtain Mamba, we can use the following resource: https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html.
 
 To obtain Conda, we can use the following resource: https://conda.io/projects/conda/en/latest/user-guide/install/index.html.
 
-.. Note:: 
-   We recommend using Mamba for its fast installation of the environment. 
+.. Note::
+   We recommend using Mamba for its fast installation of the environment.
 
 
 
 Building Mamba Environment
-----------------------------
+--------------------------
 
-To use this software, begin by creating a Conda environment using the provided ``environment.yaml`` file::
-
-  mamba env create -n my_env_name -f environment.yaml
-
-where ``my_env_name`` can be replaced with a short name for your Conda environment. When the environment finishes installing, activate it with::
-
-  mamba activate my_env_name
-
-From within your activated Conda environment, a simulation can be executed with::
-
-  python pvade_main.py --command_line_arg value
-
-
-We can test the successful installation of PVade and its MPI implementation by running the following example::
+The Conda/Mamba environment creation commands are given above. To test the DOLFINx and MPI installation, run the following example::
   
   mpirun -np $num_cores python -u $PVade/tutorials/poissoneq.py 64  cg none 1
 
@@ -216,12 +294,12 @@ We change the directory to ``$PVade`` and load mamba.
    The same can be achieved by using Conda.
    Mamba was shown to be faster.
 
-We then create an environment ``PVade_public`` and activate it.
+The repository environment is named ``pvade`` and already installs PVade itself.
 
 .. code::
 
-   ~$ mamba env create -n PVade_public -f environment.yaml
-   ~$ mamba activate PVade_public
+   ~$ mamba env create -f environment.yaml
+   ~$ mamba activate pvade
 
 To test the installation we can run an example using the command:
 

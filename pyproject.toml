@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pvade"
+version = "1.1.0"
+description = "Fluid-structure interaction modeling of wind loads on solar-tracking photovoltaic arrays"
+readme = "README.md"
+requires-python = ">=3.10,<3.11"
+license = "BSD-3-Clause"
+license-files = ["LICENSE.txt"]
+authors = [
+    { name = "Ethan Young" },
+    { name = "Walid Arsalane" },
+    { name = "Brooke Stanislawski" },
+    { name = "Xin He" },
+    { name = "Chris Ivanov" },
+    { name = "Scott Dana" },
+    { name = "Michael Deceglie" },
+]
+keywords = [
+    "photovoltaics",
+    "fluid-structure interaction",
+    "FEniCSx",
+    "wind loads",
+    "CFD",
+    "solar tracking",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "gmsh",
+    "h5py",
+    "jsonschema",
+    "numba",
+    "numpy",
+    "pandas",
+    "PyYAML",
+    "scipy",
+    "tqdm",
+]
+
+[project.urls]
+Homepage = "https://github.com/NatLabRockies/PVade"
+Documentation = "https://pvade.readthedocs.io/"
+Source = "https://github.com/NatLabRockies/PVade"
+Issues = "https://github.com/NatLabRockies/PVade/issues"
+Citation = "https://doi.org/10.11578/dc.20231208.1"
+
+[project.scripts]
+pvade = "pvade.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+py-modules = ["pvade_main"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pvade", "pvade.*"]
+exclude = ["pvade.tests", "pvade.tests.*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+"pvade.IO" = ["input_schema.yaml"]
