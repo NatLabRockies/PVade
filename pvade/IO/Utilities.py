@@ -12,7 +12,7 @@ from pvade.IO.verbosity import get_verbosity_level
 def get_input_file():
     """Parse the path to the PVade input YAML file from the command line.
 
-    Reads the ``--input_file`` argument from ``sys.argv`` and verifies that
+    Reads the ``--input`` or ``--input_file`` argument from ``sys.argv`` and verifies that
     a value was supplied.  Raises a :class:`ValueError` when no input file
     is specified.
 
@@ -27,6 +27,8 @@ def get_input_file():
 
     parser.add_argument(
         "--input_file",
+        "--input",
+        dest="input_file",
         metavar="",
         type=str,
         help="The full path to the input file, e.g., 'inputs/my_params.yaml'",

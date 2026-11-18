@@ -1,0 +1,107 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and verify distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+      - name: Install build tools
+        run: python -m pip install --upgrade build twine
+      - name: Build wheel and source distribution
+        run: python -m build
+      - name: Check distribution metadata
+        run: python -m twine check dist/*
+      - name: Verify wheel contents
+        run: python packaging_tests/check_wheel.py dist/*.whl
+      - name: Verify release tag matches package version
+        run: python packaging_tests/check_release_version.py "$GITHUB_REF_NAME" dist
+      - name: Verify release commit is contained in official main
+        if: github.repository == 'NatLabRockies/PVade'
+        run: |
+          git fetch --no-tags https://github.com/NatLabRockies/PVade.git main:refs/remotes/official/main
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/official/main
+      - name: Upload distributions
+        uses: actions/upload-artifact@v5
+        with:
+          name: pvade-distributions
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  validate:
+    name: Validate built wheel with native solver stack
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Create supported Conda environment
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: "3.10"
+          environment-file: environment-runtime.yaml
+          activate-environment: pvade
+      - name: Download the exact build artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: pvade-distributions
+          path: dist
+      - name: Recheck artifact metadata and contents
+        shell: bash -l {0}
+        run: |
+          python -m pip install --upgrade twine
+          python -m twine check dist/*
+          python packaging_tests/check_wheel.py dist/*.whl
+          python packaging_tests/check_release_version.py "$GITHUB_REF_NAME" dist
+      - name: Run existing Conda test suites
+        shell: bash -l {0}
+        run: |
+          python -m pip install dist/*.whl pytest matplotlib
+          python -m pytest -q pvade/tests
+          python -m pytest -q test_all_inputs.py
+      - name: Install and test the built wheel
+        shell: bash -l {0}
+        run: bash packaging_tests/validate_release_install.sh "$GITHUB_WORKSPACE"/dist/pvade-*.whl "$GITHUB_WORKSPACE" "$GITHUB_REF_NAME"
+      - name: Verify official release ancestry
+        if: github.repository == 'NatLabRockies/PVade'
+        shell: bash -l {0}
+        run: |
+          git fetch --no-tags https://github.com/NatLabRockies/PVade.git main:refs/remotes/official/main
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/official/main
+
+  publish:
+    name: Publish validated distributions to PyPI
+    needs: [build, validate]
+    if: github.repository == 'NatLabRockies/PVade' && github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pvade
+    permissions:
+      id-token: write
+    steps:
+      - name: Download the validated build artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: pvade-distributions
+          path: dist
+      - name: Publish to PyPI using Trusted Publishing
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

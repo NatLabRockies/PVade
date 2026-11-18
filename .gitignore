@@ -1,6 +1,8 @@
 .*
 !/.gitignore
 !/.readthedocs.yaml
+!/.github/
+!/.github/workflows/
 *.pyc
 *.egg-info/
 

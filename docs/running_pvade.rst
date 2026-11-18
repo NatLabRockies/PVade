@@ -21,7 +21,7 @@ Run PVade with:
 
 .. code-block:: bash
 
-   conda run -n PVade python pvade_main.py --input <path-to-yaml>
+   conda run -n pvade pvade --input <path-to-yaml>
 
 Example Inputs In This Repository
 ---------------------------------
@@ -46,13 +46,13 @@ Panels 3D:
 
 .. code-block:: bash
 
-   conda run -n PVade python pvade_main.py --input examples/panels3d.yaml
+   conda run -n pvade pvade --input examples/panels3d.yaml
 
 Panels 2D:
 
 .. code-block:: bash
 
-   conda run -n PVade python pvade_main.py --input examples/panels2d.yaml
+   conda run -n pvade pvade --input examples/panels2d.yaml
 
 
 Output Location
@@ -72,7 +72,7 @@ You can override YAML values from the command line using dotted keys:
 
 .. code-block:: bash
 
-   conda run -n PVade python pvade_main.py --input examples/panels3d.yaml --solver.dt 0.001 --solver.t_final 0.01
+   conda run -n pvade pvade --input examples/panels3d.yaml --solver.dt 0.001 --solver.t_final 0.01
 
 More On Input Parameters
 ------------------------
@@ -95,7 +95,7 @@ Set it before launching a run, for example:
 
 .. code-block:: bash
 
-   PVADE_VERBOSITY=2 conda run -n PVade python pvade_main.py --input examples/panels3d.yaml
+   PVADE_VERBOSITY=2 conda run -n pvade pvade --input examples/panels3d.yaml
 
 .. note::
    ``PVADE_VERBOSITY`` only affects what is echoed to the terminal. The full

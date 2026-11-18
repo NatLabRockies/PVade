@@ -1,4 +1,4 @@
-name: pvade-test
+name: pvade
 channels:
   - conda-forge  
   - nodefaults
@@ -27,4 +27,5 @@ dependencies:
   - pip:
     - sphinx-rtd-theme
     - sphinxcontrib.datatemplates
-    - -e . # Installs the pvade package
+    - --no-deps
+    - -e . # Installs PVade without resolving Conda-managed solver dependencies again
