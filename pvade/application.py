@@ -79,7 +79,7 @@ def main(input_file=None):
         structure = Structure(domain, params)
         structure.build_boundary_conditions(domain, params)
         # # # Build the fluid forms
-        structure.build_forms(domain, params)
+        structure.build_forms(domain, params, flow)
     else:
         structure = None
 
