@@ -542,7 +542,11 @@ for i in range(num_steps):
         xdmf_u.write_function(u_, t)
 
     # Update variable with solution form this time step
-    with u_.vector.localForm() as loc_, u_n.vector.localForm() as loc_n, u_n1.vector.localForm() as loc_n1:
+    with (
+        u_.vector.localForm() as loc_,
+        u_n.vector.localForm() as loc_n,
+        u_n1.vector.localForm() as loc_n1,
+    ):
         loc_n.copy(loc_n1)
         loc_.copy(loc_n)
 

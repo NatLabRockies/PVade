@@ -35,7 +35,9 @@ def _add_input_schema_arguments(parser):
             units = definition.get("units")
             if units:
                 help_text = f"{help_text} (Units = {units})"
-            parser.add_argument(f"--{key}", metavar="", type=argument_type, help=help_text)
+            parser.add_argument(
+                f"--{key}", metavar="", type=argument_type, help=help_text
+            )
 
     add_properties(schema.get("properties", {}))
 

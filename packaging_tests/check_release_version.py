@@ -5,7 +5,6 @@ import zipfile
 from email import message_from_bytes
 from pathlib import Path
 
-
 release_tag, distribution_dir = sys.argv[1:3]
 expected_version = release_tag.removeprefix("v")
 distribution_path = Path(distribution_dir)

@@ -7,7 +7,6 @@ from pathlib import Path
 
 from packaging.specifiers import SpecifierSet
 
-
 wheel_path = Path(sys.argv[1])
 repository_root = Path(__file__).resolve().parents[1]
 codemeta = json.loads((repository_root / "codemeta.json").read_text(encoding="utf-8"))
