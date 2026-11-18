@@ -18,6 +18,7 @@ dependencies:
   - python-gmsh
   - pyyaml
   - scipy
+  - libcxx <23
   - setuptools=80.9.0 
   - snakeviz
   - sphinx
