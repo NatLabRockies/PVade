@@ -27,5 +27,3 @@ dependencies:
   - pip:
     - sphinx-rtd-theme
     - sphinxcontrib.datatemplates
-    - --no-deps
-    - -e . # Installs PVade without resolving Conda-managed solver dependencies again

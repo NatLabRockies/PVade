@@ -51,7 +51,11 @@ From a PVade repository checkout, create the development environment defined in 
    mamba env create -f environment.yaml
    mamba activate pvade
 
-The environment file installs FEniCSx/DOLFINx, MPICH, and the Python libraries needed by PVade. It also installs the checkout using ``pip install -e . --no-deps``: editable mode makes source changes immediately visible, and ``--no-deps`` leaves dependency management to Conda so pip does not replace or re-resolve MPI/PETSc-related packages.
+The environment file installs FEniCSx/DOLFINx, MPICH, and the Python libraries needed by PVade. After activating it, install the checkout using a separate pip command::
+
+   python -m pip install --no-deps -e .
+
+Editable mode makes source changes immediately visible; ``--no-deps`` leaves dependency management to Conda so pip does not replace or re-resolve MPI/PETSc-related packages. The pip command is deliberately separate from the environment file's ``pip:`` requirements because Conda treats entries in that list as requirements and does not accept pip install options such as ``--no-deps`` there.
 
 Install from source in an existing environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

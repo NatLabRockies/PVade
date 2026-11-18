@@ -13,13 +13,17 @@ PyPI installation instructions for PVade 1.1.0, the first public distribution, a
 
 ## Quick Start
 
-1. From the repository root, create the supported environment. It installs PVade itself in editable mode without asking pip to resolve the Conda-managed solver stack again:
+1. From the repository root, create the supported scientific-computing environment:
     ```bash
     mamba env create -f environment.yaml
     ```
     Activate the environment:
     ```bash
     mamba activate pvade
+    ```
+    Install the checkout in editable mode without asking pip to re-resolve Conda-managed dependencies:
+    ```bash
+    python -m pip install --no-deps -e .
     ```
 2. Verify the package and command:
     ```bash
