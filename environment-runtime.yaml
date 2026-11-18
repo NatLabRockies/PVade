@@ -10,4 +10,5 @@ dependencies:
   - setuptools=80.9.0
   - petsc4py
   - mpi4py
+  - python-gmsh
   - pip
