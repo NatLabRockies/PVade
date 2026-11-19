@@ -184,7 +184,7 @@ In this example, we will solve a 2D flag simulation known as FSI2 using the PVad
 
 This example is executed using::
 
-  pvade --input "tutorials/flag flutter/flag2d.yaml"
+  pvade --input_file "tutorials/flag flutter/flag2d.yaml"
 
 
 PVade starts by generating the mesh for the computational domain. 

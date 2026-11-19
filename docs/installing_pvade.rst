@@ -14,53 +14,70 @@ PVade dependencies are included in environment.yaml.
 Installation
 ------------
 
-PVade has three installation paths: public PyPI installation (pending the first successful publication), developer installation from this repository, and installation into an HPC environment with externally provisioned native libraries. Pip does not install a complete DOLFINx/PETSc/MPI stack.
+PVade is available from PyPI (https://pypi.org/project/pvade/). There are three supported ways to install it: from PyPI (recommended for most users), from a source checkout for development, and into an existing HPC environment with externally provisioned native libraries. PVade itself is pip-installable, but pip does not install the native scientific stack (DOLFINx, PETSc, MPI) that full simulations require; that stack comes from Conda/Mamba or from the HPC site. PVade supports Python 3.10 only.
 
-A. Public PyPI installation (pending)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+A. Install from PyPI
+~~~~~~~~~~~~~~~~~~~~
 
-PVade 1.1.0 is being prepared as the first public PyPI release. These instructions remain pending until publication succeeds; do not use ``pip install pvade`` before the release is announced. Download the runtime-only Conda environment definition directly from the official repository, without cloning PVade. It provisions the tested Python 3.10, DOLFINx 0.6, PETSc, and OpenMPI stack, with the ``libcxx`` and setuptools pins validated for DOLFINx 0.6 on macOS::
+You do not need to clone the repository. Download the runtime-only Conda environment definition from the official repository. It provisions Python 3.10, DOLFINx 0.6, PETSc, OpenMPI, and every Python dependency PVade needs, with the ``libcxx`` and setuptools pins validated for DOLFINx 0.6 on macOS::
 
    curl -fsSLO https://raw.githubusercontent.com/NatLabRockies/PVade/main/environment-runtime.yaml
    mamba env create -f environment-runtime.yaml
    mamba activate pvade
 
-After PVade 1.1.0 has been published, install PVade from PyPI::
+To reproduce the environment that belongs to a specific release, download the file from that release tag instead (for example ``.../PVade/v1.1.0/environment-runtime.yaml``).
 
-   python -m pip install pvade
+Then install PVade into that environment without letting pip re-resolve the Conda-managed packages::
 
-Then verify and run it::
+   python -m pip install --no-deps pvade
+
+To pin a release, name it explicitly::
+
+   python -m pip install --no-deps pvade==1.1.0
+
+``--no-deps`` is recommended here because ``environment-runtime.yaml`` already provides every dependency. Without it, pip may not recognize Conda's ``python-gmsh`` as satisfying the ``gmsh`` requirement and install the PyPI ``gmsh`` wheel over it (observed on macOS arm64). That wheel is a different Gmsh version from the one the tests were run against, which changes the generated meshes and therefore slightly changes the numerical results. Because Conda's ``python-gmsh`` does not register pip metadata, ``python -m pip check`` reports ``pvade requires gmsh, which is not installed`` in this environment even though ``import gmsh`` works; use the verification commands below instead.
+
+Verify the installation::
 
    python -m pip show pvade
    python -c "import pvade; print(pvade.__file__)"
+   python -c "import gmsh; print(gmsh.__version__)"
    pvade --help
-   pvade --input /path/to/your/input.yaml
+   python -m pvade --help
 
-If you do not have a simulation input yet, download a sample configuration directly from the official repository without cloning it::
+If you only want the command line help and the input schema, without running simulations, ``python -m pip install pvade`` into any Python 3.10 environment is sufficient. Running a simulation needs the native stack above.
+
+The YAML input file is user-supplied. The example inputs are in the source repository and are not part of the installed package; download one without cloning::
 
    curl -fsSLO https://raw.githubusercontent.com/NatLabRockies/PVade/main/examples/panels2d.yaml
-   pvade --input panels2d.yaml
+   pvade --input_file panels2d.yaml
 
-The YAML input file is user-supplied; example files are in the source repository and are not part of the installed wheel. The runtime environment provisions native solver components first; pip then installs PVade and its declared Python dependencies. If the native environment has site-specific constraints, follow the HPC instructions below instead.
+If the native environment has site-specific constraints, follow the HPC instructions below instead.
 
 B. Developer installation from source
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-From a PVade repository checkout, create the development environment defined in ``environment.yaml``. Its environment name is ``pvade``::
+Developers work from a clone of the repository and use the full development environment defined in ``environment.yaml``. Its environment name is ``pvade``::
 
+   git clone https://github.com/NatLabRockies/PVade.git
+   cd PVade
    mamba env create -f environment.yaml
    mamba activate pvade
 
-The environment file installs FEniCSx/DOLFINx, MPICH, and the Python libraries needed by PVade. After activating it, install the checkout using a separate pip command::
+The environment file installs FEniCSx/DOLFINx, MPICH, the Python libraries needed by PVade, and the testing and documentation tools. After activating it, install the checkout using a separate pip command::
 
    python -m pip install --no-deps -e .
+
+Run the test suite from the repository root after making changes (see :doc:`testing`)::
+
+   pytest -sv pvade/tests
 
 Editable mode makes source changes immediately visible; ``--no-deps`` leaves dependency management to Conda so pip does not replace or re-resolve MPI/PETSc-related packages. The pip command is deliberately separate from the environment file's ``pip:`` requirements because Conda treats entries in that list as requirements and does not accept pip install options such as ``--no-deps`` there.
 
 Install from source in an existing environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The environment creation above installs PVade as part of the checkout. If the environment already exists and PVade has not yet been installed, run this from the repository root while it is active::
+If the environment already exists and PVade has not yet been installed into it, run this from the repository root while it is active::
 
    python -m pip install --no-deps -e .
 
@@ -76,33 +93,37 @@ Run these commands in the activated environment::
    pvade --help
    python -m pvade --help
 
+For a PyPI installation, ``pvade.__file__`` should point into the environment's ``site-packages``; for a developer installation it points into your checkout.
+
 D. Run PVade
 ~~~~~~~~~~~~
 
-From the repository root, run an included example input file with::
+The installed command is the primary interface. Give it the path to a YAML input file::
 
-   pvade --input examples/panels2d.yaml
+   pvade --input_file /path/to/your/input.yaml
 
-The legacy ``--input_file`` spelling is also accepted::
+The same run can be started through Python::
 
-   pvade --input_file examples/panels2d.yaml
+   python -m pvade --input_file /path/to/your/input.yaml
 
-For a custom input file, give the path to that file::
+For an MPI run, use the launcher from the activated environment::
 
-   pvade --input /path/to/your/input.yaml
+   mpirun -np 2 pvade --input_file /path/to/your/input.yaml
 
-The original script invocation remains supported::
+From a source checkout, the original script invocation remains supported as a backward-compatible interface::
 
-   python pvade_main.py --input examples/panels2d.yaml
+   python pvade_main.py --input_file examples/panels2d.yaml
+
+``--input`` is accepted as a shorthand for ``--input_file``. Individual input parameters can be overridden on the command line, for example ``--solver.t_final 0.01``. See :doc:`running_pvade` for details.
 
 E. HPC installations
 ~~~~~~~~~~~~~~~~~~~~
 
-On HPC systems, provision compatible DOLFINx, PETSc, MPI, and the ordinary Python dependencies through the site's Conda/Mamba environment or modules before installing PVade. When all package dependencies are already available, install the published release without allowing pip to modify that environment::
+On HPC systems, keep the site's working MPI, PETSc, and DOLFINx stack. Install PVade into an existing compatible environment (a site Conda/Mamba environment or a virtual environment built on the site modules) that already provides DOLFINx, PETSc, mpi4py, and the ordinary Python dependencies declared by PVade (``gmsh``, ``h5py``, ``jsonschema``, ``numba``, ``numpy``, ``pandas``, ``PyYAML``, ``scipy``, ``tqdm``). In that situation install the published release without allowing pip to modify the environment::
 
    python -m pip install --no-deps pvade
 
-For development from a source checkout, use ``python -m pip install --no-deps -e .`` from the repository root instead. Do not use ``--no-deps`` unless every dependency declared by PVade is already importable in that environment. Do not use pip to replace a site-provided native stack.
+This option is appropriate when the environment is already validated for your site and you do not want pip to change MPI-linked or other native packages. For development from a source checkout, use ``python -m pip install --no-deps -e .`` from the repository root instead. Do not use ``--no-deps`` unless every dependency declared by PVade is already importable in that environment, and do not use pip to replace a site-provided native stack. Launch parallel jobs with the launcher your site's MPI requires (see :doc:`hpc_jobs`).
 
 To obtain Mamba, we can use the following resource: https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html.
 
@@ -167,7 +188,7 @@ Option 2: Using Docker
 If you are already comfortable with Docker, we recommend using Docker for
 DOLFINx; otherwise, we recommend WSL2 instead.
 
-1. `Install <https://docs.docker.com/desktop/install/windows-install/>`_ Docker.
+1. `Install <https://docs.docker.com/desktop/setup/install/windows-install/>`_ Docker.
    Docker Desktop requires a license for large organizations such as NLR;
    check license availability before proceeding. A Docker Desktop license is
    not necessary for installing a DOLFINx environment in Docker.

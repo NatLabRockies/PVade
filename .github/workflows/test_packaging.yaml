@@ -34,3 +34,14 @@ jobs:
           "$RUNNER_TEMP/pvade-wheel-env/bin/pvade" --help
           "$RUNNER_TEMP/pvade-wheel-env/bin/python" -m pvade --help
           "$RUNNER_TEMP/pvade-wheel-env/bin/python" -m pvade_main --help
+      - name: Summarize packaging checks
+        if: always()
+        run: |
+          {
+            echo "### Packaging checks (job status: ${{ job.status }})"
+            echo
+            echo "- Built the source distribution and wheel with \`python -m build\`."
+            echo "- Ran \`twine check\` and \`packaging_tests/check_wheel.py\` on the distributions."
+            echo "- Installed the wheel into a clean virtual environment and checked metadata, the bundled input schema, \`pvade --help\`, \`python -m pvade --help\` and \`python -m pvade_main --help\`."
+            echo "- Native-solver simulations are not run here; see the \`test_pvade\` and \`test-pypi\` workflows."
+          } >> "$GITHUB_STEP_SUMMARY"

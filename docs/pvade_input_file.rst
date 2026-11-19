@@ -5,7 +5,7 @@ PVade reads simulation settings from a YAML file passed with:
 
 .. code-block:: bash
 
-  conda run -n pvade pvade --input <path-to-yaml>
+  conda run -n pvade pvade --input_file <path-to-yaml>
 
 Top-Level Sections
 ------------------

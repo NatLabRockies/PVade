@@ -68,3 +68,7 @@ namespaces = false
 
 [tool.setuptools.package-data]
 "pvade.IO" = ["input_schema.yaml"]
+
+[tool.coverage.run]
+source = ["pvade"]
+omit = ["pvade/tests/*"]

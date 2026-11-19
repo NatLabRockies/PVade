@@ -78,7 +78,7 @@ From the repository root:
 
 .. code-block:: bash
 
-	 conda run -n pvade pvade --input examples/panels2d.yaml
+	 conda run -n pvade pvade --input_file examples/panels2d.yaml
 
 PV Panels 2D Expected Output
 -------------------------
