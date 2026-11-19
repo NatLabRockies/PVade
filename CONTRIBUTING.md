@@ -10,7 +10,7 @@ Contributions of all kinds are welcome, including:
 
 ## Before You Start
 
-1. Check whether your topic already exists in the issue tracker: https://github.com/NREL/PVade/issues
+1. Check whether your topic already exists in the issue tracker: https://github.com/NatLabRockies/PVade/issues
 2. If not, open a new issue with a clear description and expected behavior.
 3. Comment on the issue before starting implementation work, especially for larger changes.
 

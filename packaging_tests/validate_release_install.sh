@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# Usage: validate_release_install.sh <wheel path or pip requirement> <source checkout> <release tag>
+#
+# Optional environment variables:
+#   PVADE_PIP_INSTALL_ARGS    extra pip install arguments, e.g. --no-deps
+#   PVADE_SKIP_PIP_CHECK=1    skip `pip check` (Conda's python-gmsh has no pip metadata)
+#   PVADE_TEST_SOURCE_SCRIPT=0  skip running the checkout's pvade_main.py; that script
+#                             imports the checkout's pvade package rather than the installed one
 set -euo pipefail
 
 wheel_path="$1"
@@ -8,8 +15,11 @@ expected_version="${release_tag#v}"
 runner_temp="${RUNNER_TEMP:-/tmp}"
 
 python -m pip uninstall -y pvade
-python -m pip install "$wheel_path"
-python -m pip check
+# shellcheck disable=SC2086
+python -m pip install --no-cache-dir ${PVADE_PIP_INSTALL_ARGS:-} "$wheel_path"
+if [ "${PVADE_SKIP_PIP_CHECK:-0}" != "1" ]; then
+    python -m pip check
+fi
 cd "$runner_temp"
 unset PYTHONPATH 2>/dev/null || true
 
@@ -56,13 +66,19 @@ python "$legacy_script" --input_file "$source_root/examples/panels2d.yaml" \
     --general.output_dir "$runner_temp/pvade-pypi-legacy" \
     --general.mesh_only true
 
-python "$source_root/pvade_main.py" --input_file "$source_root/examples/panels2d.yaml" \
-    --general.output_dir "$runner_temp/pvade-main-source" \
-    --general.mesh_only true
+if [ "${PVADE_TEST_SOURCE_SCRIPT:-1}" = "1" ]; then
+    python "$source_root/pvade_main.py" --input_file "$source_root/examples/panels2d.yaml" \
+        --general.output_dir "$runner_temp/pvade-main-source" \
+        --general.mesh_only true
+fi
 
 pvade --input "$source_root/examples/panels2d.yaml" \
     --general.output_dir "$runner_temp/pvade-pypi-single" \
     --solver.t_final 0.001
+test -s "$runner_temp/pvade-pypi-single/logfile.log"
+
 mpiexec -n 2 pvade --input_file "$source_root/pvade/tests/input/yaml/flag2d.yaml" \
     --general.output_dir "$runner_temp/pvade-pypi-mpi"
+test -s "$runner_temp/pvade-pypi-mpi/solution/solution_fluid.xdmf"
+test -s "$runner_temp/pvade-pypi-mpi/solution/lift_and_drag.csv"
 

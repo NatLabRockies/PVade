@@ -1,0 +1,253 @@
+name: test-pypi
+
+# Independently checks that the PVade release distributed on PyPI installs and runs.
+# It never publishes anything and has no OIDC publishing permission.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Published PVade version to test (empty = latest stable release on PyPI)"
+        required: false
+        default: ""
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_run:
+    workflows: ["Publish to PyPI"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve the published version to test
+    # Scheduled and post-publication runs are limited to the official repository.
+    # A successful publish workflow run alone does not prove a release was uploaded,
+    # so the publish job result and the PyPI listing are both checked below.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.repository == 'NatLabRockies/PVade' && (
+        github.event_name == 'schedule' ||
+        (github.event_name == 'workflow_run' &&
+         github.event.workflow_run.event == 'release' &&
+         github.event.workflow_run.conclusion == 'success')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Confirm the publish job itself succeeded
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          result="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLISH_RUN_ID/jobs" --paginate \
+            --jq '.jobs[] | select(.name | startswith("Publish validated distributions")) | .conclusion')"
+          echo "Publish job conclusion: ${result:-<not found>}"
+          test "$result" = "success"
+      - name: Choose the version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          python -m pip install --quiet packaging
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import urllib.request
+
+          from packaging.version import InvalidVersion, Version
+
+          event = os.environ["EVENT_NAME"]
+          requested = os.environ.get("REQUESTED_VERSION", "").strip()
+          tag = os.environ.get("RELEASE_TAG", "").strip()
+
+          def latest_stable():
+              with urllib.request.urlopen("https://pypi.org/pypi/pvade/json", timeout=30) as response:
+                  releases = json.load(response)["releases"]
+              stable = []
+              for name, files in releases.items():
+                  try:
+                      version = Version(name)
+                  except InvalidVersion:
+                      continue
+                  if version.is_prerelease or not files or all(f.get("yanked") for f in files):
+                      continue
+                  stable.append(version)
+              if not stable:
+                  raise SystemExit("No stable PVade release found on PyPI")
+              return str(max(stable))
+
+          if event == "workflow_run":
+              if not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
+                  print(f"::notice::Release tag {tag!r} is not a stable vX.Y.Z tag; skipping the PyPI smoke test")
+                  with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+                      output.write("version=\n")
+                  raise SystemExit(0)
+              version = tag[1:]
+          elif requested:
+              if not re.fullmatch(r"\d+\.\d+\.\d+", requested):
+                  raise SystemExit(f"Requested version {requested!r} is not a stable X.Y.Z version")
+              version = requested
+          else:
+              version = latest_stable()
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"version={version}\n")
+          print(f"Testing PVade {version}")
+          PY
+      - name: Wait until the version is listed on PyPI
+        if: steps.version.outputs.version != ''
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Bounded wait (about 10 minutes) for PyPI propagation after a release.
+          for attempt in $(seq 1 20); do
+            if curl -fsS -o /dev/null "https://pypi.org/pypi/pvade/$VERSION/json"; then
+              echo "pvade $VERSION is listed on PyPI (attempt $attempt)"
+              exit 0
+            fi
+            echo "pvade $VERSION not listed yet (attempt $attempt of 20); waiting 30 seconds"
+            sleep 30
+          done
+          echo "::error::pvade $VERSION was not found on PyPI after waiting"
+          exit 1
+      - name: Summarize
+        if: steps.version.outputs.version != ''
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          {
+            echo "### Published PVade version under test"
+            echo
+            echo "- Trigger: \`${{ github.event_name }}\`"
+            echo "- Version: \`$VERSION\` (https://pypi.org/project/pvade/$VERSION/)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  pip-install:
+    name: Install from PyPI (${{ matrix.os }})
+    needs: resolve
+    if: needs.resolve.outputs.version != ''
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      VERSION: ${{ needs.resolve.outputs.version }}
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+      - name: Install the published package in a fresh virtual environment
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --no-cache-dir "pvade==$VERSION"
+      - name: Verify metadata, resources and command line interface
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          export PATH="$RUNNER_TEMP/venv/bin:$PATH"
+          unset PYTHONPATH
+          python -m pip show pvade
+          python -m pip check
+          EXPECTED_VERSION="$VERSION" python - <<'PY'
+          import os
+          from importlib import metadata, resources
+          from pathlib import Path
+
+          import pvade
+
+          assert metadata.version("pvade") == os.environ["EXPECTED_VERSION"], metadata.version("pvade")
+          location = Path(pvade.__file__).resolve()
+          assert "site-packages" in location.parts, location
+          assert resources.files("pvade.IO").joinpath("input_schema.yaml").is_file()
+          print(f"pvade {metadata.version('pvade')} imported from {location}")
+          PY
+          pvade --help > help_cli.txt
+          python -m pvade --help > help_module.txt
+          python -m pvade_main --help > help_main.txt
+          for help_file in help_cli.txt help_module.txt help_main.txt; do
+            grep -q -- '--input_file' "$help_file"
+          done
+      - name: Summarize
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### PyPI installation on ${{ matrix.os }} (job status: ${{ job.status }})"
+            echo
+            echo "Installed \`pvade==$VERSION\` from PyPI into a fresh Python 3.10 virtual environment, outside any source checkout, and checked:"
+            echo "- installed version, \`pip check\` and the packaged input schema"
+            echo "- \`pvade --help\`, \`python -m pvade --help\` and \`python -m pvade_main --help\`"
+            echo
+            echo "The native solver stack is not installed in this job, so no simulation is run here."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  runtime-simulation:
+    name: Run simulations with the PyPI release (Conda runtime)
+    needs: resolve
+    if: needs.resolve.outputs.version != ''
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.resolve.outputs.version }}
+    steps:
+      # The release tag provides the matching environment file and example inputs.
+      # It is kept in ./source and is never put on the Python path.
+      - uses: actions/checkout@v6
+        with:
+          ref: v${{ needs.resolve.outputs.version }}
+          path: source
+          persist-credentials: false
+      - name: Create the documented Conda runtime environment
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: "3.10"
+          environment-file: source/environment-runtime.yaml
+          activate-environment: pvade
+      - name: Install the published package and run simulations
+        shell: bash -l {0}
+        env:
+          PVADE_PIP_INSTALL_ARGS: --no-deps
+          PVADE_SKIP_PIP_CHECK: "1"
+          PVADE_TEST_SOURCE_SCRIPT: "0"
+        run: |
+          bash source/packaging_tests/validate_release_install.sh "pvade==$VERSION" "$GITHUB_WORKSPACE/source" "v$VERSION"
+      - name: Summarize
+        if: always()
+        shell: bash -l {0}
+        run: |
+          {
+            echo "### PyPI release simulations (job status: ${{ job.status }})"
+            echo
+            echo "Installed \`pvade==$VERSION\` from PyPI with \`--no-deps\` into the Conda environment from \`environment-runtime.yaml\` at tag \`v$VERSION\`."
+            echo
+            echo "- \`pvade\`, \`python -m pvade\` and the packaged \`pvade_main\` script: help output"
+            echo "- mesh-only runs of \`examples/panels2d.yaml\` through \`python -m pvade\` and the packaged \`pvade_main\` script"
+            echo "- single-rank \`panels2d\` solve through \`pvade --input\`, checking the log file"
+            echo "- two-rank MPI \`flag2d\` solve through \`mpiexec -n 2 pvade\`, checking the solution and force output files"
+            echo
+            python - <<'PY'
+          import dolfinx, gmsh, petsc4py
+          from mpi4py import MPI
+
+          print("Native stack: DOLFINx", dolfinx.__version__, "| PETSc", petsc4py.__version__, "| Gmsh", gmsh.__version__)
+          print()
+          print("MPI:", MPI.Get_library_version().splitlines()[0])
+          PY
+          } >> "$GITHUB_STEP_SUMMARY"

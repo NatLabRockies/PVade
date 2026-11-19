@@ -15,6 +15,7 @@ dependencies:
   - numba
   - pandas
   - pytest
+  - pytest-cov
   - python-gmsh
   - pyyaml
   - scipy

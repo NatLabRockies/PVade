@@ -57,6 +57,6 @@ vortex shedding.
 
 .. note::
   - This script is a standalone solver example and is separate from the
-    YAML-driven ``pvade --input ...`` workflow.
+    YAML-driven ``pvade --input_file ...`` workflow.
   - You can tune mesh and physics parameters directly in the script
     (for example ``Re``, ``dt``, and mesh resolution variables).
